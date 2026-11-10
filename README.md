@@ -43,6 +43,7 @@ The repository carries its own [Claude Code](https://claude.com/claude-code) con
 │   └── tests/      the hooks' own tests
 ├── commands/       the project's slash commands
 └── skills/         knowledge Claude loads when a task calls for it
+lefthook.yml        runs the same checks from git, for commits made by hand
 ```
 
 ### Rules
@@ -60,7 +61,7 @@ A rule is a short document that says how something in this project is done. Clau
 
 ### Hooks
 
-A hook is a script that Claude Code runs at a fixed moment. The hooks here refuse work that breaks a rule, before it is written or committed. They check what Claude does. They are not git hooks, so a commit you make by hand in a terminal is not checked.
+A hook is a script that Claude Code runs at a fixed moment. The hooks here refuse work that breaks a rule, before it is written or committed. They check what Claude does. Commits you make by hand are checked by the same scripts through git, as the next section says.
 
 | Hook | Runs | What it enforces |
 |---|---|---|
@@ -76,6 +77,24 @@ The hooks have tests. Run them after you change a hook, a rule or `settings.json
 ```
 python3 .claude/hooks/tests/test_hooks.py
 ```
+
+### Git hooks
+
+A commit made by hand in a terminal never passes through Claude Code, so [lefthook](https://lefthook.dev) runs the same two checks from git. `lefthook.yml` at the root of the repository connects them:
+
+| Git hook | Runs | What it enforces |
+|---|---|---|
+| `commit-msg` | when git has the message of a commit | The same as `check-commit.py` above: the form of the message, the issue number of the branch, and the changelog for a `feat`, `fix` or breaking commit. A message written in an editor is fine here. |
+| `pre-commit` | before git makes a commit that holds Swift files | The same as `check-swift-source.py` above, on the files as they are staged. |
+
+Git hooks are not part of a clone. Switch them on once, in your copy of the repository:
+
+```
+brew install lefthook
+lefthook install
+```
+
+Two limits are worth knowing. `git commit --no-verify` skips both checks, and nothing forces anyone to run `lefthook install`. The design review and the rules given to subagents have no counterpart in git.
 
 ### Commands
 
@@ -120,6 +139,7 @@ The name after `@` is the source's repository name in lowercase: `swiftdata-agen
 ### Tools you need
 
 - Python 3, which runs the hooks. macOS with Xcode's command line tools has it.
+- [lefthook](https://lefthook.dev), installed in your copy with `lefthook install`. It runs the hooks for commits made by hand.
 - The [GitHub CLI](https://cli.github.com) (`gh`), signed in. The commands read issues and open pull requests with it.
 - [git-spice](https://abhinav.github.io/git-spice/), signed in with `git-spice auth login`. `/pr` and `/update` manage stacked branches with it.
 
