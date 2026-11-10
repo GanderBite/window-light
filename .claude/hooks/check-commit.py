@@ -42,6 +42,9 @@ TYPES_A_USER_NOTICES = ("feat", "fix")
 BREAKING_CHANGE_ANNOUNCEMENT = re.compile(r"^BREAKING[ -]CHANGE: ", re.MULTILINE)
 NO_CHANGELOG_ENTRY_FOOTER = re.compile(r"^Changelog: none \(.*\S.*\)[ \t]*$", re.MULTILINE)
 ADD_OPTIONS_STAGING_EVERYTHING = ("-A", "--all", "-u", "--update", ".", ":/", "*")
+MESSAGE_FILE_OPTION = "--message-file"
+DEFAULT_COMMENT_CHARACTER = "#"
+SCISSORS_AFTER_THE_COMMENT_CHARACTER = " ------------------------ >8 ------------------------"
 
 Word = collections.namedtuple("Word", "text is_literal")
 
@@ -496,6 +499,7 @@ MISSING_MESSAGE = (
     "This commit has no message on the command line and would open an editor. "
     "Pass the message with -m.\n\n" + FORMAT_REMINDER
 )
+UNREADABLE_MESSAGE_FILE = "The commit message could not be read from the file git wrote it to, so it cannot be checked."
 REVERT_WITHOUT_MESSAGE = (
     "`git revert` writes a message that is not a conventional commit. "
     "Run `git revert --no-commit <commit>` and then `git commit -m \"revert: <what is undone>\"`.\n\n"
@@ -637,6 +641,10 @@ def refusal_for_missing_changelog(message, commit, repository, arguments_of_earl
     noticed = what_a_user_notices(message)
     if noticed is None or changelog_is_part_of(commit, repository, arguments_of_earlier_adds):
         return None
+    return refusal_naming_the_missing_changelog(noticed)
+
+
+def refusal_naming_the_missing_changelog(noticed):
     return (
         "This is {noticed}, which changes something a user can notice, but {changelog} is not part of "
         "the commit, so the commit was not made.\n\n"
@@ -647,11 +655,62 @@ def refusal_for_missing_changelog(message, commit, repository, arguments_of_earl
     ).format(noticed=noticed, changelog=CHANGELOG)
 
 
+def checked_out_branch(repository):
+    current_branch = git_output(repository, "branch", "--show-current")
+    return current_branch.strip() or None if current_branch is not None else None
+
+
 def branch_receiving_the_commit(commit, repository, creates_branch):
     if creates_branch:
         return commit.paths[0] if commit.paths else ""
-    current_branch = git_output(repository, "branch", "--show-current")
-    return current_branch.strip() or None if current_branch is not None else None
+    return checked_out_branch(repository)
+
+
+def comment_character(repository):
+    configured = (git_output(repository, "config", "--get", "core.commentChar") or "").strip()
+    return configured if len(configured) == 1 else DEFAULT_COMMENT_CHARACTER
+
+
+def message_git_will_record(text_of_message_file, comment_character):
+    recorded_lines = []
+    for line in text_of_message_file.split("\n"):
+        if line == comment_character + SCISSORS_AFTER_THE_COMMENT_CHARACTER:
+            break
+        if not line.startswith(comment_character):
+            recorded_lines.append(line)
+    return "\n".join(recorded_lines).strip("\n")
+
+
+def git_is_amending_the_last_commit(repository):
+    author_date_git_gives_this_commit = os.environ.get("GIT_AUTHOR_DATE", "")
+    author_date_of_the_last_commit = (git_output(repository, "log", "-1", "--format=%at") or "").strip()
+    return bool(author_date_of_the_last_commit) and author_date_git_gives_this_commit.startswith(
+        "@" + author_date_of_the_last_commit + " "
+    )
+
+
+def changelog_is_in_the_commit_git_is_recording(repository):
+    files_in_the_commit = git_output(repository, "diff", "--cached", "--name-only")
+    if files_in_the_commit is None:
+        return True
+    if git_is_amending_the_last_commit(repository):
+        files_in_the_commit += git_output(repository, "show", "--name-only", "--format=", "HEAD") or ""
+    return CHANGELOG in files_in_the_commit.splitlines()
+
+
+def refusal_for_commit_git_is_recording(message_file_path, repository):
+    try:
+        with open(message_file_path, encoding="utf-8") as message_file:
+            message = message_git_will_record(message_file.read(), comment_character(repository))
+    except (OSError, UnicodeDecodeError):
+        return UNREADABLE_MESSAGE_FILE
+    refusal = refusal_for_message(message, checked_out_branch(repository))
+    if refusal:
+        return refusal
+    noticed = what_a_user_notices(message)
+    if noticed is None or changelog_is_in_the_commit_git_is_recording(repository):
+        return None
+    return refusal_naming_the_missing_changelog(noticed)
 
 
 def refusal_for_commit(arguments, heredocs, working_directory, arguments_of_earlier_adds, program="git commit"):
@@ -706,7 +765,16 @@ def refusal_for_script(script, working_directory, nesting=0):
     return None
 
 
+def answer_git(refusal):
+    if refusal:
+        sys.stderr.write(refusal + "\n")
+        return 1
+    return 0
+
+
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == MESSAGE_FILE_OPTION:
+        return answer_git(refusal_for_commit_git_is_recording(sys.argv[2], os.getcwd()))
     payload = json.load(sys.stdin)
     script = (payload.get("tool_input") or {}).get("command") or ""
     if not MENTIONS_A_COMMITTING_PROGRAM.search(script):

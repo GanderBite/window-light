@@ -49,7 +49,9 @@ class CommitHookTestCase(HookTestCase):
         )
 
 
-class ChangelogTests(CommitHookTestCase):
+class RepositoryTestCase(CommitHookTestCase):
+    LONG_AGO = "2026-01-01T12:00:00"
+
     def setUp(self):
         super().setUp()
         self.git("init", "--quiet")
@@ -58,7 +60,7 @@ class ChangelogTests(CommitHookTestCase):
         self.put("README.md", "readme\n")
         self.put("CHANGELOG.md", "# Changelog\n\n## [Unreleased]\n")
         self.git("add", "-A")
-        self.git("commit", "--quiet", "-m", "chore: #12 start the project")
+        self.git("commit", "--quiet", "--date", self.LONG_AGO, "-m", "chore: #12 start the project")
         self.git("checkout", "--quiet", "-b", "feat/12-slots")
 
     def git(self, *arguments):
@@ -78,6 +80,8 @@ class ChangelogTests(CommitHookTestCase):
         if stage:
             self.git("add", "CHANGELOG.md")
 
+
+class ChangelogTests(RepositoryTestCase):
     def test_refuses_noticeable_commits_without_the_changelog(self):
         self.change_code()
         for command in [
@@ -438,6 +442,161 @@ class SwiftSourceTests(HookTestCase):
                 {"tool_name": "Write", "tool_input": {"file_path": outside, "content": "// outside\nimport UIKit\n"}},
             )
         )
+
+
+class GitHookTestCase(RepositoryTestCase):
+    def setUp(self):
+        super().setUp()
+        self.let_git_run("commit-msg", "check-commit.py", '--message-file "$1"')
+        self.let_git_run("pre-commit", "check-swift-source.py", "--staged")
+
+    def let_git_run(self, git_hook, script, arguments):
+        hook_path = os.path.join(self.project, ".git", "hooks", git_hook)
+        with open(hook_path, "w", encoding="utf-8") as hook:
+            hook.write(
+                '#!/bin/sh\nexec "{python}" -B "{script}" {arguments}\n'.format(
+                    python=sys.executable, script=os.path.join(HOOKS_DIRECTORY, script), arguments=arguments
+                )
+            )
+        os.chmod(hook_path, 0o755)
+
+    def commit(self, *arguments, author_date=None, editor=None):
+        environment = {name: value for name, value in os.environ.items() if not name.startswith("GIT_")}
+        if author_date:
+            environment["GIT_AUTHOR_DATE"] = author_date
+        if editor:
+            environment["GIT_EDITOR"] = editor
+        return subprocess.run(
+            ["git", "-C", self.project, "commit"] + list(arguments),
+            capture_output=True,
+            text=True,
+            env=environment,
+        )
+
+    def assert_committed(self, finished):
+        self.assertEqual(finished.returncode, 0, finished.stderr)
+
+    def assert_refused(self, finished, expected_explanation):
+        self.assertNotEqual(finished.returncode, 0, "git made a commit the hook should have refused")
+        self.assertIn(expected_explanation, finished.stderr)
+
+    def stage(self, relative_path, content):
+        os.makedirs(os.path.dirname(os.path.join(self.project, relative_path)), exist_ok=True)
+        self.put(relative_path, content)
+        self.git("add", relative_path)
+
+
+class GitCommitMessageTests(GitHookTestCase):
+    def test_git_refuses_messages_that_break_the_rules(self):
+        self.change_code()
+        refused_messages = {
+            "Add slots": "does not have the form",
+            "refactor: split the placement steps": "Put the issue number first",
+            "refactor: #7 split the placement steps": "belongs to issue #12",
+            "feat: #12 add slots": "CHANGELOG.md is not part of",
+        }
+        for message, expected_explanation in refused_messages.items():
+            with self.subTest(message=message):
+                self.assert_refused(self.commit("-m", message), expected_explanation)
+
+    def test_git_allows_messages_that_follow_the_rules(self):
+        allowed_messages = [
+            ["-m", "refactor: #12 split the placement steps"],
+            ["-m", "feat(domain): #12 add slots", "-m", "Changelog: none (not reachable by users yet)"],
+            ["-m", "fixup! feat: #12 add slots"],
+        ]
+        for number, message in enumerate(allowed_messages):
+            with self.subTest(message=message):
+                self.stage("Slot{}.swift".format(number), "struct Slot{} {{}}\n".format(number))
+                self.assert_committed(self.commit(*message))
+
+    def test_git_refuses_a_commit_on_a_branch_without_an_issue_number(self):
+        self.change_code()
+        self.git("checkout", "--quiet", "-b", "experiments")
+        self.assert_refused(self.commit("-m", "refactor: #12 split the placement steps"), "carries no issue number")
+
+    def test_git_allows_a_noticeable_commit_that_includes_the_changelog(self):
+        self.change_code()
+        self.change_changelog()
+        self.assert_committed(self.commit("-m", "feat: #12 add slots"))
+
+    def test_git_sees_the_changelog_a_commit_of_all_changes_includes(self):
+        self.change_code()
+        self.change_changelog(stage=False)
+        self.assert_committed(self.commit("-a", "-m", "feat: #12 add slots"))
+
+    def test_amending_counts_the_changelog_already_in_the_commit(self):
+        self.change_code()
+        self.change_changelog()
+        self.assert_committed(self.commit("-m", "feat: #12 add slots", author_date=self.LONG_AGO))
+        self.stage("Slot.swift", "struct Slot { let name: String }\n")
+        self.assert_committed(self.commit("--amend", "-m", "feat: #12 add the eight slots"))
+
+    def test_a_new_commit_does_not_borrow_the_changelog_of_the_last_one(self):
+        self.change_code()
+        self.change_changelog()
+        self.assert_committed(self.commit("-m", "feat: #12 add slots", author_date=self.LONG_AGO))
+        self.stage("Schedule.swift", "struct Schedule {}\n")
+        self.assert_refused(self.commit("-m", "feat: #12 add schedules"), "CHANGELOG.md is not part of")
+
+    def test_git_judges_the_message_without_the_comments_of_the_editor(self):
+        self.change_code()
+        editor_path = os.path.join(self.temporary_files, "write-header-directly-above-the-template.sh")
+        with open(editor_path, "w", encoding="utf-8") as editor:
+            editor.write(
+                '#!/bin/sh\n'
+                'printf "refactor: #12 split the placement steps\\n" > "$1.written"\n'
+                'grep -v "^$" "$1" >> "$1.written"\n'
+                'mv "$1.written" "$1"\n'
+            )
+        os.chmod(editor_path, 0o755)
+        self.assert_committed(self.commit("--verbose", editor=editor_path))
+
+
+class GitSwiftSourceTests(GitHookTestCase):
+    HEADER = "refactor: #12 split the placement steps"
+
+    def test_git_refuses_staged_sources_that_break_the_rules(self):
+        refused_sources = {
+            "Sources/Domain/Slot.swift": ("import SwiftUI\n", "architecture.md"),
+            "Sources/Domain/Time Of Day.swift": ("// a time of day\nstruct TimeOfDay {}\n", "comments.md"),
+            "Sources/Infrastructure/Store.swift": ("let data = try! load()\n", "try!"),
+            "Tests/DomainTests/SlotTests.swift": ("import Testing\n// arrange\n", "comments.md"),
+        }
+        for relative_path, (content, expected_explanation) in refused_sources.items():
+            with self.subTest(path=relative_path):
+                self.stage(relative_path, content)
+                self.assert_refused(self.commit("-m", self.HEADER), expected_explanation)
+                self.git("rm", "--quiet", "--cached", relative_path)
+
+    def test_git_allows_staged_sources_that_follow_the_rules(self):
+        self.stage("Sources/Domain/Slot.swift", "import Foundation\n\nstruct Slot {}\n")
+        self.stage("Sources/Features/Library/Library View.swift", "import SwiftUI\nimport Application\n")
+        self.stage("docs/notes.md", "// not swift\n")
+        self.assert_committed(self.commit("-m", self.HEADER))
+
+    def test_git_judges_what_is_staged_and_not_the_working_file(self):
+        self.stage("Sources/Domain/Slot.swift", "// one time of day\nstruct Slot {}\n")
+        self.put("Sources/Domain/Slot.swift", "struct Slot {}\n")
+        self.assert_refused(self.commit("-m", self.HEADER), "comments.md")
+        self.git("add", "Sources/Domain/Slot.swift")
+        self.put("Sources/Domain/Slot.swift", "// one time of day\nstruct Slot {}\n")
+        self.assert_committed(self.commit("-m", self.HEADER))
+
+    def test_git_does_not_blame_a_commit_for_what_was_already_there(self):
+        self.stage("Sources/Domain/Slot.swift", "// old note\nimport SwiftUI\n\nstruct Slot {}\n")
+        self.assert_committed(self.commit("--no-verify", "-m", self.HEADER))
+        self.git("mv", "Sources/Domain/Slot.swift", "Sources/Domain/TimeSlot.swift")
+        self.stage("Sources/Domain/TimeSlot.swift", "// old note\nimport SwiftUI\n\nstruct TimeSlot {}\n")
+        self.assert_committed(self.commit("-m", self.HEADER))
+        self.stage("Sources/Domain/TimeSlot.swift", "// old note\n// new note\nimport SwiftUI\n\nstruct TimeSlot {}\n")
+        self.assert_refused(self.commit("-m", self.HEADER), "new note")
+
+    def test_git_allows_deleting_a_source_that_broke_the_rules(self):
+        self.stage("Sources/Domain/Slot.swift", "// old note\nstruct Slot {}\n")
+        self.assert_committed(self.commit("--no-verify", "-m", self.HEADER))
+        self.git("rm", "--quiet", "Sources/Domain/Slot.swift")
+        self.assert_committed(self.commit("-m", self.HEADER))
 
 
 class DesignReviewTests(HookTestCase):
