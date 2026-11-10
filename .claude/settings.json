@@ -1,4 +1,10 @@
 {
+  "enabledPlugins": {
+    "swiftui-pro@swiftui-agent-skill": true,
+    "swiftdata-pro@swiftdata-agent-skill": true,
+    "swift-concurrency-pro@swift-concurrency-agent-skill": true,
+    "swift-testing-pro@swift-testing-agent-skill": true
+  },
   "hooks": {
     "SubagentStart": [
       {
