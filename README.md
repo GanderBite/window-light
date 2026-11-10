@@ -27,7 +27,7 @@ Nothing keeps running after you quit, and the app collects no data.
 
 Contributions are welcome.
 
-- Open pull requests against the `development` branch.
+- Open pull requests against the `main` branch.
 - Pull requests are merged with "Rebase and merge", so keep each commit meaningful on its own.
 - Do not add pictures, videos or other material you don't own, including anything made by Apple.
 
