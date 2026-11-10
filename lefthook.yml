@@ -1,0 +1,12 @@
+min_version: 1.10.0
+
+commit-msg:
+  jobs:
+    - name: commit message
+      run: .claude/hooks/check-commit.py --message-file {1}
+
+pre-commit:
+  jobs:
+    - name: swift sources
+      glob: "*.swift"
+      run: .claude/hooks/check-swift-source.py --staged

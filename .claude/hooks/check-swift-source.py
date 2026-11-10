@@ -7,6 +7,7 @@ import collections
 import json
 import os
 import re
+import subprocess
 
 import review_queue
 
@@ -40,6 +41,18 @@ IMPORT_STATEMENT = re.compile(
 )
 CRASHING_TRY = re.compile(r"\btry!")
 EMPTY_CATCH = re.compile(r"\bcatch\b[^{}\n]*\{\s*\}")
+STAGED_OPTION = "--staged"
+STATUS_OF_AN_ADDED_FILE = "A"
+STATUS_OF_A_RENAMED_FILE = "R"
+WRITING = (
+    "written",
+    "Change the code so it follows the rules and write it again. "
+    "Do not get around this check by writing the file another way.",
+)
+COMMITTING = (
+    "committed",
+    "Change the code so it follows the rules, stage it and commit again.",
+)
 
 Violation = collections.namedtuple("Violation", "identity line explanation")
 
@@ -270,24 +283,84 @@ def place_in_project(file_path, project):
     return relative_path, layer, is_test
 
 
-def refusal(relative_path, violations):
+def refusal(relative_path, violations, action=WRITING):
+    what_was_stopped, what_to_do_next = action
     lines = [
-        "This change to {path} breaks the project rules, so it was not written.".format(path=relative_path),
+        "This change to {path} breaks the project rules, so it was not {stopped}.".format(
+            path=relative_path, stopped=what_was_stopped
+        ),
         "",
     ]
     lines += [
         "- line {line}: {explanation}".format(line=violation.line, explanation=violation.explanation)
         for violation in violations
     ]
-    lines += [
-        "",
-        "Change the code so it follows the rules and write it again. "
-        "Do not get around this check by writing the file another way.",
-    ]
+    lines += ["", what_to_do_next]
     return "\n".join(lines)
 
 
+def git_output(repository, *arguments):
+    try:
+        finished = subprocess.run(
+            ["git", "-C", repository] + list(arguments), capture_output=True, text=True, encoding="utf-8", timeout=10
+        )
+    except (OSError, subprocess.SubprocessError, UnicodeDecodeError):
+        return None
+    return finished.stdout if finished.returncode == 0 else None
+
+
+def staged_swift_files(repository):
+    listing = git_output(
+        repository, "diff", "--cached", "--name-status", "-z", "--find-renames", "--diff-filter=AMR"
+    )
+    fields = [field for field in (listing or "").split("\0") if field]
+    staged = []
+    position = 0
+    while position < len(fields):
+        status = fields[position]
+        paths_of_this_file = 2 if status.startswith(STATUS_OF_A_RENAMED_FILE) else 1
+        paths = fields[position + 1 : position + 1 + paths_of_this_file]
+        position += 1 + paths_of_this_file
+        if not paths or not paths[-1].endswith(".swift"):
+            continue
+        path_in_last_commit = None if status == STATUS_OF_AN_ADDED_FILE else paths[0]
+        staged.append((path_in_last_commit, paths[-1]))
+    return staged
+
+
+def refusal_for_staged_sources(repository):
+    refusals = []
+    for path_in_last_commit, path in staged_swift_files(repository):
+        place = place_in_project(os.path.join(repository, path), repository)
+        staged_source = git_output(repository, "show", ":" + path)
+        if place is None or staged_source is None:
+            continue
+        relative_path, layer, is_test = place
+        source_in_last_commit = (
+            git_output(repository, "show", "HEAD:" + path_in_last_commit) if path_in_last_commit else None
+        )
+        introduced = violations_introduced(
+            violations_in(source_in_last_commit or "", layer, is_test), violations_in(staged_source, layer, is_test)
+        )
+        if introduced:
+            refusals.append(refusal(relative_path, introduced, COMMITTING))
+    return "\n\n".join(refusals)
+
+
+def check_what_git_is_committing():
+    top_of_working_tree = git_output(os.getcwd(), "rev-parse", "--show-toplevel")
+    if top_of_working_tree is None:
+        return 0
+    refused = refusal_for_staged_sources(os.path.realpath(top_of_working_tree.strip()))
+    if refused:
+        sys.stderr.write(refused + "\n")
+        return 1
+    return 0
+
+
 def main():
+    if sys.argv[1:] == [STAGED_OPTION]:
+        return check_what_git_is_committing()
     payload = json.load(sys.stdin)
     tool_input = payload.get("tool_input") or {}
     file_path = tool_input.get("file_path") or ""
