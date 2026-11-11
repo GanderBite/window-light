@@ -1,0 +1,43 @@
+name: Test and build
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: xcode-27
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Show the toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+      - name: Run every test
+        run: swift test
+
+  build:
+    name: Build the app
+    runs-on: xcode-27
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Show the toolchain
+        run: xcodebuild -version
+      - name: Build Window Light
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project WindowLight.xcodeproj \
+            -scheme WindowLight \
+            -destination 'platform=macOS' \
+            -derivedDataPath DerivedData \
+            build \
+            | xcbeautify --renderer github-actions
