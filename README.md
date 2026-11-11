@@ -23,9 +23,33 @@ Nothing keeps running after you quit, and the app collects no data.
 - macOS 27 or later.
 - Xcode 27 or later, to build from source.
 
-## Building and testing
+## Building, running and testing
 
-The layers of the app are Swift modules declared in `Package.swift`. Each module lives in the directory with its name, and its tests live in the directory `<Module>Tests`: `Domain` and `DomainTests`, for example.
+You need a Mac with macOS 27 or later and Xcode 27 or later. You need no Apple developer account and no certificate: the app is signed to run on your own Mac.
+
+Get the source:
+
+```
+git clone https://github.com/GanderBite/window-light.git
+cd window-light
+```
+
+The layers of the app are Swift modules declared in `Package.swift`. Each module lives in the directory with its name, and its tests live in the directory `<Module>Tests`: `Domain` and `DomainTests`, for example. The app target in `WindowLight/`, built by `WindowLight.xcodeproj`, connects the layers into the app.
+
+To build and run the app in Xcode:
+
+1. Open `WindowLight.xcodeproj`.
+2. Choose the scheme `WindowLight`.
+3. Choose Product → Run.
+
+To build and run the app from a terminal:
+
+```
+xcodebuild -project WindowLight.xcodeproj -scheme WindowLight -destination 'platform=macOS' -derivedDataPath DerivedData build
+open "DerivedData/Build/Products/Debug/Window Light.app"
+```
+
+The tests run with `swift test`. The Test command of Xcode's `WindowLight` scheme runs none.
 
 - `swift build` builds every module.
 - `swift test` builds every module and runs every test.
