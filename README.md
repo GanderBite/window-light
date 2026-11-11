@@ -21,7 +21,15 @@ Nothing keeps running after you quit, and the app collects no data.
 ## Requirements
 
 - macOS 27 or later.
-- Xcode, to build from source. Build instructions will be added with the first code.
+- Xcode 27 or later, to build from source.
+
+## Building and testing
+
+The layers of the app are Swift modules declared in `Package.swift`. Each module lives in the directory with its name, and its tests live in the directory `<Module>Tests`: `Domain` and `DomainTests`, for example.
+
+- `swift build` builds every module.
+- `swift test` builds every module and runs every test.
+- `swift test --filter DomainTests` runs the tests of one test target.
 
 ## Contributing
 
