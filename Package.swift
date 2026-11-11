@@ -16,12 +16,12 @@ let package = Package(
         .target(name: "Domain", path: "Domain"),
         .testTarget(name: "DomainTests", dependencies: ["Domain"], path: "DomainTests"),
         .target(name: "Application", dependencies: ["Domain"], path: "Application"),
-        .testTarget(name: "ApplicationTests", dependencies: ["Application"], path: "ApplicationTests"),
+        .testTarget(name: "ApplicationTests", dependencies: ["Application", "Domain"], path: "ApplicationTests"),
         .target(name: "Infrastructure", dependencies: ["Domain", "Application"], path: "Infrastructure"),
-        .testTarget(name: "InfrastructureTests", dependencies: ["Infrastructure"], path: "InfrastructureTests"),
+        .testTarget(name: "InfrastructureTests", dependencies: ["Infrastructure", "Application", "Domain"], path: "InfrastructureTests"),
         .target(name: "Presentation", dependencies: ["Domain"], path: "Presentation"),
         .testTarget(name: "PresentationTests", dependencies: ["Presentation"], path: "PresentationTests"),
         .target(name: "Features", dependencies: ["Application", "Domain", "Presentation"], path: "Features"),
-        .testTarget(name: "FeaturesTests", dependencies: ["Features"], path: "FeaturesTests")
+        .testTarget(name: "FeaturesTests", dependencies: ["Features", "Application", "Domain"], path: "FeaturesTests")
     ]
 )
