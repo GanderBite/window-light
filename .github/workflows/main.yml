@@ -4,6 +4,12 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: Upload the build to TestFlight
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -36,9 +42,13 @@ jobs:
         run: |
           {
             echo "APP_STORE_CONNECT_KEY_PATH=$RUNNER_TEMP/AppStoreConnectKey.p8"
+            echo "SIGNING_KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db"
             echo "ARCHIVE_PATH=$RUNNER_TEMP/WindowLight.xcarchive"
             echo "EXPORT_OPTIONS_PATH=$RUNNER_TEMP/ExportOptions.plist"
+            echo "UPLOAD_OPTIONS_PATH=$RUNNER_TEMP/UploadOptions.plist"
             echo "EXPORT_PATH=$RUNNER_TEMP/Export"
+            echo "UPLOAD_PATH=$RUNNER_TEMP/Upload"
+            echo "EXPANDED_PACKAGE_PATH=$RUNNER_TEMP/ExpandedPackage"
           } >> "$GITHUB_ENV"
       - name: Store the App Store Connect key
         env:
@@ -46,6 +56,25 @@ jobs:
         run: |
           umask 077
           printf '%s\n' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$APP_STORE_CONNECT_KEY_PATH"
+      - name: Install the development certificate
+        env:
+          DEVELOPMENT_CERTIFICATE_P12: ${{ secrets.DEVELOPMENT_CERTIFICATE_P12 }}
+          DEVELOPMENT_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPMENT_CERTIFICATE_PASSWORD }}
+        run: |
+          umask 077
+          keychain_password="$(uuidgen)"
+          certificate_path="$RUNNER_TEMP/DevelopmentCertificate.p12"
+          printf '%s' "$DEVELOPMENT_CERTIFICATE_P12" | base64 --decode > "$certificate_path"
+          security create-keychain -p "$keychain_password" "$SIGNING_KEYCHAIN_PATH"
+          security set-keychain-settings -lut 3600 "$SIGNING_KEYCHAIN_PATH"
+          security unlock-keychain -p "$keychain_password" "$SIGNING_KEYCHAIN_PATH"
+          security import "$certificate_path" -f pkcs12 -P "$DEVELOPMENT_CERTIFICATE_PASSWORD" \
+            -k "$SIGNING_KEYCHAIN_PATH" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" \
+            "$SIGNING_KEYCHAIN_PATH" > /dev/null
+          security list-keychains -d user -s "$SIGNING_KEYCHAIN_PATH" login.keychain-db
+          rm -f "$certificate_path"
+          security find-identity -v -p codesigning "$SIGNING_KEYCHAIN_PATH" | grep -c "Apple Development"
       - name: Archive Window Light
         run: |
           set -o pipefail
@@ -56,6 +85,8 @@ jobs:
             -destination 'generic/platform=macOS' \
             -derivedDataPath DerivedData \
             -archivePath "$ARCHIVE_PATH" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Development" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             | xcbeautify --renderer github-actions
@@ -63,12 +94,14 @@ jobs:
         run: |
           plutil -create xml1 "$EXPORT_OPTIONS_PATH"
           plutil -insert method -string app-store-connect "$EXPORT_OPTIONS_PATH"
-          plutil -insert destination -string upload "$EXPORT_OPTIONS_PATH"
           plutil -insert signingStyle -string automatic "$EXPORT_OPTIONS_PATH"
           plutil -insert teamID -string "$APPLE_TEAM_ID" "$EXPORT_OPTIONS_PATH"
           plutil -insert manageAppVersionAndBuildNumber -bool NO "$EXPORT_OPTIONS_PATH"
           plutil -insert uploadSymbols -bool YES "$EXPORT_OPTIONS_PATH"
-      - name: Sign and upload to TestFlight
+          cp "$EXPORT_OPTIONS_PATH" "$UPLOAD_OPTIONS_PATH"
+          plutil -insert destination -string export "$EXPORT_OPTIONS_PATH"
+          plutil -insert destination -string upload "$UPLOAD_OPTIONS_PATH"
+      - name: Sign for distribution
         run: |
           xcodebuild -exportArchive \
             -archivePath "$ARCHIVE_PATH" \
@@ -78,6 +111,53 @@ jobs:
             -authenticationKeyPath "$APP_STORE_CONNECT_KEY_PATH" \
             -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
             -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
-      - name: Remove the App Store Connect key
+      - name: Check the distribution signature
+        run: |
+          package_path="$(find "$EXPORT_PATH" -maxdepth 1 -name '*.pkg' | head -n 1)"
+          if [ -z "$package_path" ]; then
+            echo "::error::The export produced no installer package"
+            ls -la "$EXPORT_PATH"
+            exit 1
+          fi
+          pkgutil --expand-full "$package_path" "$EXPANDED_PACKAGE_PATH"
+          app_path="$(find "$EXPANDED_PACKAGE_PATH" -name '*.app' -type d | head -n 1)"
+          if [ -z "$app_path" ]; then
+            echo "::error::The installer package holds no app"
+            exit 1
+          fi
+          codesign --display --verbose=2 --requirements - "$app_path" 2>&1 | tee "$RUNNER_TEMP/signature.txt"
+          if grep -q "adhoc" "$RUNNER_TEMP/signature.txt"; then
+            echo "::error::The app carries an ad-hoc signature, which App Store Connect rejects"
+            exit 1
+          fi
+          if ! grep -q "^TeamIdentifier=$APPLE_TEAM_ID$" "$RUNNER_TEMP/signature.txt"; then
+            echo "::error::The app is not signed by the team"
+            exit 1
+          fi
+          if ! codesign --verify --deep --strict --verbose=2 "$app_path"; then
+            echo "::error::The signature of the app does not verify"
+            exit 1
+          fi
+          if ! codesign --display --entitlements - --xml "$app_path" 2> /dev/null \
+            | grep -q "<key>com.apple.security.app-sandbox</key><true/>"; then
+            echo "::error::The signed app has lost the App Sandbox entitlement"
+            exit 1
+          fi
+      - name: Upload to TestFlight
+        if: github.event_name == 'push' || inputs.upload
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportOptionsPlist "$UPLOAD_OPTIONS_PATH" \
+            -exportPath "$UPLOAD_PATH" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$APP_STORE_CONNECT_KEY_PATH" \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+      - name: Remove the keys
         if: always()
-        run: rm -f "$APP_STORE_CONNECT_KEY_PATH"
+        run: |
+          rm -f "$APP_STORE_CONNECT_KEY_PATH"
+          if [ -f "$SIGNING_KEYCHAIN_PATH" ]; then
+            security delete-keychain "$SIGNING_KEYCHAIN_PATH"
+          fi
