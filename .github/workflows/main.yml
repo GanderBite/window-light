@@ -73,6 +73,27 @@ jobs:
           printf '%s' "$DISTRIBUTION_CERTIFICATE_P12" | base64 --decode > "$distribution_certificate_path"
           printf '%s' "$INSTALLER_CERTIFICATE_P12" | base64 --decode > "$installer_certificate_path"
           printf '%s' "$DISTRIBUTION_PROVISIONING_PROFILE" | base64 --decode > "$PROVISIONING_PROFILE_PATH"
+          explain_unusable_certificate() {
+            local secret_name="$1" certificate_path="$2" password_variable="$3"
+            if [ ! -s "$certificate_path" ]; then
+              echo "::error::The secret $secret_name is empty or is not base64"
+              return 1
+            fi
+            if /usr/bin/openssl pkcs12 -in "$certificate_path" -noout \
+              -passin "env:$password_variable" 2> "$RUNNER_TEMP/certificate-check.txt"; then
+              return 0
+            fi
+            if grep -qi "mac verify\|invalid password" "$RUNNER_TEMP/certificate-check.txt"; then
+              echo "::error::The password in ${secret_name%_P12}_PASSWORD does not open the certificate in $secret_name"
+            else
+              echo "::error::The secret $secret_name does not hold a .p12 file"
+            fi
+            return 1
+          }
+          explain_unusable_certificate DISTRIBUTION_CERTIFICATE_P12 \
+            "$distribution_certificate_path" DISTRIBUTION_CERTIFICATE_PASSWORD
+          explain_unusable_certificate INSTALLER_CERTIFICATE_P12 \
+            "$installer_certificate_path" INSTALLER_CERTIFICATE_PASSWORD
           security create-keychain -p "$keychain_password" "$SIGNING_KEYCHAIN_PATH"
           security set-keychain-settings -lut 3600 "$SIGNING_KEYCHAIN_PATH"
           security unlock-keychain -p "$keychain_password" "$SIGNING_KEYCHAIN_PATH"
