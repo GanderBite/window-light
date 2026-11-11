@@ -1,0 +1,79 @@
+name: Main
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: main
+  cancel-in-progress: false
+
+jobs:
+  test-and-build:
+    name: Test and build
+    uses: ./.github/workflows/test-and-build.yml
+
+  testflight:
+    name: Publish to TestFlight
+    needs: test-and-build
+    runs-on: xcode-27
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.2.app/Contents/Developer
+      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_KEY_PATH: ${{ runner.temp }}/AppStoreConnectKey.p8
+      ARCHIVE_PATH: ${{ runner.temp }}/WindowLight.xcarchive
+      EXPORT_OPTIONS_PATH: ${{ runner.temp }}/ExportOptions.plist
+      EXPORT_PATH: ${{ runner.temp }}/Export
+      BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Show the toolchain
+        run: xcodebuild -version
+      - name: Store the App Store Connect key
+        env:
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          umask 077
+          printf '%s\n' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$APP_STORE_CONNECT_KEY_PATH"
+      - name: Archive Window Light
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project WindowLight.xcodeproj \
+            -scheme WindowLight \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath DerivedData \
+            -archivePath "$ARCHIVE_PATH" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+            | xcbeautify --renderer github-actions
+      - name: Write the export options
+        run: |
+          plutil -create xml1 "$EXPORT_OPTIONS_PATH"
+          plutil -insert method -string app-store-connect "$EXPORT_OPTIONS_PATH"
+          plutil -insert destination -string upload "$EXPORT_OPTIONS_PATH"
+          plutil -insert signingStyle -string automatic "$EXPORT_OPTIONS_PATH"
+          plutil -insert teamID -string "$APPLE_TEAM_ID" "$EXPORT_OPTIONS_PATH"
+          plutil -insert manageAppVersionAndBuildNumber -bool NO "$EXPORT_OPTIONS_PATH"
+          plutil -insert uploadSymbols -bool YES "$EXPORT_OPTIONS_PATH"
+      - name: Sign and upload to TestFlight
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportOptionsPlist "$EXPORT_OPTIONS_PATH" \
+            -exportPath "$EXPORT_PATH" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$APP_STORE_CONNECT_KEY_PATH" \
+            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
+            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+      - name: Remove the App Store Connect key
+        if: always()
+        run: rm -f "$APP_STORE_CONNECT_KEY_PATH"
