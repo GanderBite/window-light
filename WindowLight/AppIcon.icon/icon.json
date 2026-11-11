@@ -1,0 +1,20 @@
+{
+  "fill" : {
+    "automatic-gradient" : "extended-srgb:0.10000,0.25000,0.55000,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "window.svg",
+          "name" : "window"
+        }
+      ]
+    }
+  ],
+  "supported-platforms" : {
+    "squares" : [
+      "macOS"
+    ]
+  }
+}
