@@ -33,6 +33,7 @@ jobs:
       APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
       APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
       APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      BUNDLE_IDENTIFIER: com.ganderbite.WindowLight
       BUILD_NUMBER: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v7
@@ -41,40 +42,64 @@ jobs:
       - name: Choose where the working files go
         run: |
           {
-            echo "APP_STORE_CONNECT_KEY_PATH=$RUNNER_TEMP/AppStoreConnectKey.p8"
+            echo "API_PRIVATE_KEYS_DIR=$RUNNER_TEMP/AppStoreConnectKeys"
             echo "SIGNING_KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db"
+            echo "PROVISIONING_PROFILE_PATH=$RUNNER_TEMP/Distribution.provisionprofile"
             echo "ARCHIVE_PATH=$RUNNER_TEMP/WindowLight.xcarchive"
-            echo "EXPORT_OPTIONS_PATH=$RUNNER_TEMP/ExportOptions.plist"
-            echo "UPLOAD_OPTIONS_PATH=$RUNNER_TEMP/UploadOptions.plist"
-            echo "EXPORT_PATH=$RUNNER_TEMP/Export"
-            echo "UPLOAD_PATH=$RUNNER_TEMP/Upload"
-            echo "EXPANDED_PACKAGE_PATH=$RUNNER_TEMP/ExpandedPackage"
+            echo "APP_PATH=$RUNNER_TEMP/Signed/Window Light.app"
+            echo "ENTITLEMENTS_PATH=$RUNNER_TEMP/Distribution.entitlements"
+            echo "PACKAGE_PATH=$RUNNER_TEMP/WindowLight.pkg"
           } >> "$GITHUB_ENV"
       - name: Store the App Store Connect key
         env:
           APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
         run: |
           umask 077
-          printf '%s\n' "$APP_STORE_CONNECT_PRIVATE_KEY" > "$APP_STORE_CONNECT_KEY_PATH"
-      - name: Install the development certificate
+          mkdir -p "$API_PRIVATE_KEYS_DIR"
+          printf '%s\n' "$APP_STORE_CONNECT_PRIVATE_KEY" \
+            > "$API_PRIVATE_KEYS_DIR/AuthKey_$APP_STORE_CONNECT_KEY_ID.p8"
+      - name: Install the distribution certificates
         env:
-          DEVELOPMENT_CERTIFICATE_P12: ${{ secrets.DEVELOPMENT_CERTIFICATE_P12 }}
-          DEVELOPMENT_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPMENT_CERTIFICATE_PASSWORD }}
+          DISTRIBUTION_CERTIFICATE_P12: ${{ secrets.DISTRIBUTION_CERTIFICATE_P12 }}
+          DISTRIBUTION_CERTIFICATE_PASSWORD: ${{ secrets.DISTRIBUTION_CERTIFICATE_PASSWORD }}
+          INSTALLER_CERTIFICATE_P12: ${{ secrets.INSTALLER_CERTIFICATE_P12 }}
+          INSTALLER_CERTIFICATE_PASSWORD: ${{ secrets.INSTALLER_CERTIFICATE_PASSWORD }}
+          DISTRIBUTION_PROVISIONING_PROFILE: ${{ secrets.DISTRIBUTION_PROVISIONING_PROFILE }}
         run: |
           umask 077
           keychain_password="$(uuidgen)"
-          certificate_path="$RUNNER_TEMP/DevelopmentCertificate.p12"
-          printf '%s' "$DEVELOPMENT_CERTIFICATE_P12" | base64 --decode > "$certificate_path"
+          distribution_certificate_path="$RUNNER_TEMP/DistributionCertificate.p12"
+          installer_certificate_path="$RUNNER_TEMP/InstallerCertificate.p12"
+          printf '%s' "$DISTRIBUTION_CERTIFICATE_P12" | base64 --decode > "$distribution_certificate_path"
+          printf '%s' "$INSTALLER_CERTIFICATE_P12" | base64 --decode > "$installer_certificate_path"
+          printf '%s' "$DISTRIBUTION_PROVISIONING_PROFILE" | base64 --decode > "$PROVISIONING_PROFILE_PATH"
           security create-keychain -p "$keychain_password" "$SIGNING_KEYCHAIN_PATH"
           security set-keychain-settings -lut 3600 "$SIGNING_KEYCHAIN_PATH"
           security unlock-keychain -p "$keychain_password" "$SIGNING_KEYCHAIN_PATH"
-          security import "$certificate_path" -f pkcs12 -P "$DEVELOPMENT_CERTIFICATE_PASSWORD" \
+          security import "$distribution_certificate_path" -f pkcs12 -P "$DISTRIBUTION_CERTIFICATE_PASSWORD" \
             -k "$SIGNING_KEYCHAIN_PATH" -T /usr/bin/codesign -T /usr/bin/security
+          security import "$installer_certificate_path" -f pkcs12 -P "$INSTALLER_CERTIFICATE_PASSWORD" \
+            -k "$SIGNING_KEYCHAIN_PATH" -T /usr/bin/productbuild -T /usr/bin/security
           security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" \
             "$SIGNING_KEYCHAIN_PATH" > /dev/null
           security list-keychains -d user -s "$SIGNING_KEYCHAIN_PATH" login.keychain-db
-          rm -f "$certificate_path"
-          security find-identity -v -p codesigning "$SIGNING_KEYCHAIN_PATH" | grep -c "Apple Development"
+          rm -f "$distribution_certificate_path" "$installer_certificate_path"
+          app_identity="$(security find-identity -v -p codesigning "$SIGNING_KEYCHAIN_PATH" \
+            | awk '/Apple Distribution/ { print $2; exit }')"
+          installer_identity="$(security find-identity -v "$SIGNING_KEYCHAIN_PATH" \
+            | awk '/Installer/ { print $2; exit }')"
+          if [ -z "$app_identity" ]; then
+            echo "::error::The keychain holds no Apple Distribution certificate with its private key"
+            exit 1
+          fi
+          if [ -z "$installer_identity" ]; then
+            echo "::error::The keychain holds no Mac Installer Distribution certificate with its private key"
+            exit 1
+          fi
+          {
+            echo "APP_SIGNING_IDENTITY=$app_identity"
+            echo "INSTALLER_SIGNING_IDENTITY=$installer_identity"
+          } >> "$GITHUB_ENV"
       - name: Archive Window Light
         run: |
           set -o pipefail
@@ -85,79 +110,79 @@ jobs:
             -destination 'generic/platform=macOS' \
             -derivedDataPath DerivedData \
             -archivePath "$ARCHIVE_PATH" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Development" \
-            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            CODE_SIGNING_ALLOWED=NO \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             | xcbeautify --renderer github-actions
-      - name: Write the export options
+      - name: Sign the app for distribution
         run: |
-          plutil -create xml1 "$EXPORT_OPTIONS_PATH"
-          plutil -insert method -string app-store-connect "$EXPORT_OPTIONS_PATH"
-          plutil -insert signingStyle -string automatic "$EXPORT_OPTIONS_PATH"
-          plutil -insert teamID -string "$APPLE_TEAM_ID" "$EXPORT_OPTIONS_PATH"
-          plutil -insert manageAppVersionAndBuildNumber -bool NO "$EXPORT_OPTIONS_PATH"
-          plutil -insert uploadSymbols -bool YES "$EXPORT_OPTIONS_PATH"
-          cp "$EXPORT_OPTIONS_PATH" "$UPLOAD_OPTIONS_PATH"
-          plutil -insert destination -string export "$EXPORT_OPTIONS_PATH"
-          plutil -insert destination -string upload "$UPLOAD_OPTIONS_PATH"
-      - name: Sign for distribution
-        run: |
-          xcodebuild -exportArchive \
-            -archivePath "$ARCHIVE_PATH" \
-            -exportOptionsPlist "$EXPORT_OPTIONS_PATH" \
-            -exportPath "$EXPORT_PATH" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$APP_STORE_CONNECT_KEY_PATH" \
-            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
-            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+          mkdir -p "$(dirname "$APP_PATH")"
+          cp -R "$ARCHIVE_PATH/Products/Applications/Window Light.app" "$APP_PATH"
+          cp "$PROVISIONING_PROFILE_PATH" "$APP_PATH/Contents/embedded.provisionprofile"
+          cp WindowLight/WindowLight.entitlements "$ENTITLEMENTS_PATH"
+          /usr/libexec/PlistBuddy \
+            -c "Add :com.apple.application-identifier string $APPLE_TEAM_ID.$BUNDLE_IDENTIFIER" \
+            -c "Add :com.apple.developer.team-identifier string $APPLE_TEAM_ID" \
+            "$ENTITLEMENTS_PATH"
+          codesign --force --timestamp --options runtime \
+            --entitlements "$ENTITLEMENTS_PATH" \
+            --keychain "$SIGNING_KEYCHAIN_PATH" \
+            --sign "$APP_SIGNING_IDENTITY" \
+            "$APP_PATH"
       - name: Check the distribution signature
         run: |
-          package_path="$(find "$EXPORT_PATH" -maxdepth 1 -name '*.pkg' | head -n 1)"
-          if [ -z "$package_path" ]; then
-            echo "::error::The export produced no installer package"
-            ls -la "$EXPORT_PATH"
-            exit 1
-          fi
-          pkgutil --expand-full "$package_path" "$EXPANDED_PACKAGE_PATH"
-          app_path="$(find "$EXPANDED_PACKAGE_PATH" -name '*.app' -type d | head -n 1)"
-          if [ -z "$app_path" ]; then
-            echo "::error::The installer package holds no app"
-            exit 1
-          fi
-          codesign --display --verbose=2 --requirements - "$app_path" 2>&1 | tee "$RUNNER_TEMP/signature.txt"
+          codesign --display --verbose=2 --requirements - "$APP_PATH" 2>&1 | tee "$RUNNER_TEMP/signature.txt"
           if grep -q "adhoc" "$RUNNER_TEMP/signature.txt"; then
             echo "::error::The app carries an ad-hoc signature, which App Store Connect rejects"
+            exit 1
+          fi
+          if ! grep -q "^Authority=Apple Distribution" "$RUNNER_TEMP/signature.txt"; then
+            echo "::error::The app is not signed with an Apple Distribution certificate"
             exit 1
           fi
           if ! grep -q "^TeamIdentifier=$APPLE_TEAM_ID$" "$RUNNER_TEMP/signature.txt"; then
             echo "::error::The app is not signed by the team"
             exit 1
           fi
-          if ! codesign --verify --deep --strict --verbose=2 "$app_path"; then
+          if ! codesign --verify --deep --strict --verbose=2 "$APP_PATH"; then
             echo "::error::The signature of the app does not verify"
             exit 1
           fi
-          if ! codesign --display --entitlements - --xml "$app_path" 2> /dev/null \
-            | grep -q "<key>com.apple.security.app-sandbox</key><true/>"; then
+          signed_entitlements="$(codesign --display --entitlements - --xml "$APP_PATH" 2> /dev/null)"
+          if ! grep -q "<key>com.apple.security.app-sandbox</key><true/>" <<< "$signed_entitlements"; then
             echo "::error::The signed app has lost the App Sandbox entitlement"
             exit 1
           fi
+          if ! grep -q "<string>$APPLE_TEAM_ID.$BUNDLE_IDENTIFIER</string>" <<< "$signed_entitlements"; then
+            echo "::error::The signed app does not name its application identifier"
+            exit 1
+          fi
+      - name: Build the installer package
+        run: |
+          productbuild \
+            --component "$APP_PATH" /Applications \
+            --keychain "$SIGNING_KEYCHAIN_PATH" \
+            --sign "$INSTALLER_SIGNING_IDENTITY" \
+            "$PACKAGE_PATH"
+          pkgutil --check-signature "$PACKAGE_PATH"
+      - name: Validate the package with App Store Connect
+        run: |
+          xcrun altool --validate-app \
+            --file "$PACKAGE_PATH" \
+            --type macos \
+            --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
       - name: Upload to TestFlight
         if: github.event_name == 'push' || inputs.upload
         run: |
-          xcodebuild -exportArchive \
-            -archivePath "$ARCHIVE_PATH" \
-            -exportOptionsPlist "$UPLOAD_OPTIONS_PATH" \
-            -exportPath "$UPLOAD_PATH" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$APP_STORE_CONNECT_KEY_PATH" \
-            -authenticationKeyID "$APP_STORE_CONNECT_KEY_ID" \
-            -authenticationKeyIssuerID "$APP_STORE_CONNECT_ISSUER_ID"
+          xcrun altool --upload-app \
+            --file "$PACKAGE_PATH" \
+            --type macos \
+            --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"
       - name: Remove the keys
         if: always()
         run: |
-          rm -f "$APP_STORE_CONNECT_KEY_PATH"
+          rm -rf "$API_PRIVATE_KEYS_DIR" "$PROVISIONING_PROFILE_PATH"
           if [ -f "$SIGNING_KEYCHAIN_PATH" ]; then
             security delete-keychain "$SIGNING_KEYCHAIN_PATH"
           fi
