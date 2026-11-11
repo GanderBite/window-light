@@ -27,15 +27,19 @@ jobs:
       APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
       APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
       APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
-      APP_STORE_CONNECT_KEY_PATH: ${{ runner.temp }}/AppStoreConnectKey.p8
-      ARCHIVE_PATH: ${{ runner.temp }}/WindowLight.xcarchive
-      EXPORT_OPTIONS_PATH: ${{ runner.temp }}/ExportOptions.plist
-      EXPORT_PATH: ${{ runner.temp }}/Export
       BUILD_NUMBER: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v7
       - name: Show the toolchain
         run: xcodebuild -version
+      - name: Choose where the working files go
+        run: |
+          {
+            echo "APP_STORE_CONNECT_KEY_PATH=$RUNNER_TEMP/AppStoreConnectKey.p8"
+            echo "ARCHIVE_PATH=$RUNNER_TEMP/WindowLight.xcarchive"
+            echo "EXPORT_OPTIONS_PATH=$RUNNER_TEMP/ExportOptions.plist"
+            echo "EXPORT_PATH=$RUNNER_TEMP/Export"
+          } >> "$GITHUB_ENV"
       - name: Store the App Store Connect key
         env:
           APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
