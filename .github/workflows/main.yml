@@ -43,6 +43,7 @@ jobs:
           {
             echo "APP_STORE_CONNECT_KEY_PATH=$RUNNER_TEMP/AppStoreConnectKey.p8"
             echo "SIGNING_KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db"
+            echo "SIGNING_REQUIREMENTS_PATH=$RUNNER_TEMP/SigningRequirements.txt"
             echo "ARCHIVE_PATH=$RUNNER_TEMP/WindowLight.xcarchive"
             echo "EXPORT_OPTIONS_PATH=$RUNNER_TEMP/ExportOptions.plist"
             echo "UPLOAD_OPTIONS_PATH=$RUNNER_TEMP/UploadOptions.plist"
@@ -75,6 +76,10 @@ jobs:
           security list-keychains -d user -s "$SIGNING_KEYCHAIN_PATH" login.keychain-db
           rm -f "$certificate_path"
           security find-identity -v -p codesigning "$SIGNING_KEYCHAIN_PATH" | grep -c "Apple Development"
+      - name: Write the requirement the signature must meet
+        run: |
+          printf 'designated => anchor apple generic and certificate leaf[subject.OU] = "%s"\n' \
+            "$APPLE_TEAM_ID" > "$SIGNING_REQUIREMENTS_PATH"
       - name: Archive Window Light
         run: |
           set -o pipefail
@@ -88,6 +93,7 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Apple Development" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            OTHER_CODE_SIGN_FLAGS="--requirements $SIGNING_REQUIREMENTS_PATH" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             | xcbeautify --renderer github-actions
       - name: Write the export options
