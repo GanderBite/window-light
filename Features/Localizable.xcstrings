@@ -308,23 +308,6 @@
         }
       }
     },
-    "Turn your own pictures and videos into a wallpaper that changes through the day." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Turn your own pictures and videos into a wallpaper that changes through the day."
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Zamień własne zdjęcia i filmy w tapetę, która zmienia się w ciągu dnia."
-          }
-        }
-      }
-    },
     "Wallpaper" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -355,23 +338,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nazwa tapety"
-          }
-        }
-      }
-    },
-    "Window Light" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Window Light"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Window Light"
           }
         }
       }

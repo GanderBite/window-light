@@ -6,4 +6,4 @@ The format follows Keep a Changelog, and versions follow Semantic Versioning.
 ## [Unreleased]
 
 ### Added
-- Window Light opens as an empty app in English or Polish and quits when its window is closed
+- Window Light opens with an empty wallpaper library that explains what a wallpaper is, in English or Polish, and quits when its window is closed
