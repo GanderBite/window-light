@@ -1,7 +1,7 @@
-import Foundation
-import Testing
 import Application
 import Domain
+import Foundation
+import Testing
 
 private func addWallpaper(to library: WallpaperLibraryStandIn, stem: String = "Wallpaper") async throws -> Wallpaper {
     try await CreateWallpaper(library: library, previews: PicturePreviewsStandIn())
@@ -36,7 +36,9 @@ struct RenameWallpaperTests {
     }
 
     @Test(arguments: ["", "   "])
-    func renamingToNoTextFailsAsNameEmptyAsksNothingOfTheLibraryAndKeepsTheOldName(proposed: String) async throws {
+    func renamingToNoTextFailsAsNameEmptyAsksNothingOfTheLibraryAndKeepsTheOldName(
+        proposed: String,
+    ) async throws {
         let library = WallpaperLibraryStandIn()
         let wallpaper = try await addWallpaper(to: library)
         let callsBefore = await library.receivedCalls
@@ -77,7 +79,8 @@ struct RenameWallpaperTests {
         }
     }
 
-    @Test func aLibraryWithNoSpaceLeftToKeepTheChangeFailsAsNoSpaceLeftAndKeepsTheOldName() async throws {
+    @Test func aLibraryWithNoSpaceLeftToKeepTheChangeFailsAsNoSpaceLeftAndKeepsTheOldName(
+    ) async throws {
         let library = WallpaperLibraryStandIn()
         let wallpaper = try await addWallpaper(to: library)
         await library.fail(.keep, with: .noSpaceLeft)
@@ -99,7 +102,8 @@ struct RenameWallpaperTests {
         #expect(await storedName(of: wallpaper, in: library) == wallpaper.name.text)
     }
 
-    @Test func anUnexpectedFailureToKeepFailsAsUnavailableWithItsDescriptionAndKeepsTheOldName() async throws {
+    @Test func anUnexpectedFailureToKeepFailsAsUnavailableWithItsDescriptionAndKeepsTheOldName(
+    ) async throws {
         let library = WallpaperLibraryStandIn()
         let wallpaper = try await addWallpaper(to: library)
         await library.fail(.keep, with: .unexpected(description: "disk vanished"))

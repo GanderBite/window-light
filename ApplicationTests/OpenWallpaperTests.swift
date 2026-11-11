@@ -1,7 +1,7 @@
-import Foundation
-import Testing
 import Application
 import Domain
+import Foundation
+import Testing
 
 private func addWallpaper(to library: WallpaperLibraryStandIn, stem: String = "Wallpaper") async throws -> Wallpaper {
     try await CreateWallpaper(library: library, previews: PicturePreviewsStandIn())
@@ -31,7 +31,8 @@ struct OpenWallpaperTests {
         #expect(await library.lastWorkedOn == second.id)
     }
 
-    @Test func openingAWallpaperThatIsNotInTheLibraryFailsAsGoneAndKeepsTheLastWorkedOn() async throws {
+    @Test func openingAWallpaperThatIsNotInTheLibraryFailsAsGoneAndKeepsTheLastWorkedOn(
+    ) async throws {
         let library = WallpaperLibraryStandIn()
         let kept = try await addWallpaper(to: library)
         _ = try await OpenWallpaper(library: library).execute(kept.id)

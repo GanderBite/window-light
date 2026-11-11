@@ -18,14 +18,16 @@ public struct ImageIOPicturePreviews: PicturePreviews {
         guard let source = CGImageSourceCreateWithData(content as CFData, nil) else {
             throw .unreadable
         }
+
         let options: [CFString: Any] = [
             kCGImageSourceCreateThumbnailFromImageAlways: true,
             kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: longestPreviewSideInPixels
+            kCGImageSourceThumbnailMaxPixelSize: longestPreviewSideInPixels,
         ]
         guard let previewImage = CGImageSourceCreateThumbnailAtIndex(source, firstFrame, options as CFDictionary) else {
             throw .unreadable
         }
+
         return previewImage
     }
 
@@ -35,14 +37,18 @@ public struct ImageIOPicturePreviews: PicturePreviews {
             content as CFMutableData,
             UTType.jpeg.identifier as CFString,
             1,
-            nil
+            nil,
         ) else {
             throw .unexpected(description: "The JPEG encoder for the preview could not be created")
         }
+
         CGImageDestinationAddImage(destination, image, nil)
         guard CGImageDestinationFinalize(destination) else {
-            throw .unexpected(description: "The preview of \(image.width) × \(image.height) pixels could not be encoded as JPEG")
+            throw .unexpected(
+                description: "The preview of \(image.width) × \(image.height) pixels could not be encoded as JPEG",
+            )
         }
+
         return content as Data
     }
 }

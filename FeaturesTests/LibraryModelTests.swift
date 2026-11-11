@@ -1,10 +1,10 @@
 import Application
 import CoreGraphics
 import Domain
+@testable import Features
 import Foundation
 import ImageIO
 import Testing
-@testable import Features
 
 private enum PreviewMakingFailure: Error {
     case noDrawingContext, noImage, noEncoder, notEncoded
@@ -18,17 +18,26 @@ private func previewBytes(width: Int, height: Int) throws -> Data {
         bitsPerComponent: 8,
         bytesPerRow: 0,
         space: CGColorSpaceCreateDeviceRGB(),
-        bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue,
     ) else { throw PreviewMakingFailure.noDrawingContext }
+
     context.setFillColor(red: 0.9, green: 0.6, blue: 0.2, alpha: 1)
     context.fill(CGRect(x: 0, y: 0, width: width, height: height))
     guard let image = context.makeImage() else { throw PreviewMakingFailure.noImage }
+
     let encoded = NSMutableData()
-    guard let destination = CGImageDestinationCreateWithData(encoded as CFMutableData, "public.jpeg" as CFString, 1, nil) else {
+    guard let destination = CGImageDestinationCreateWithData(
+        encoded as CFMutableData,
+        "public.jpeg" as CFString,
+        1,
+        nil,
+    ) else {
         throw PreviewMakingFailure.noEncoder
     }
+
     CGImageDestinationAddImage(destination, image, nil)
     guard CGImageDestinationFinalize(destination) else { throw PreviewMakingFailure.notEncoded }
+
     return encoded as Data
 }
 
@@ -38,7 +47,7 @@ private let bytesThatAreNoPicture = Data("these bytes are not a picture".utf8)
 private func addWallpaper(
     named text: String,
     previewsBySlot: [Slot: Data],
-    to library: WallpaperLibraryStandIn
+    to library: WallpaperLibraryStandIn,
 ) async throws -> Wallpaper {
     let picturesBySlot = previewsBySlot.mapValues { _ in Picture(id: PictureID(UUID())) }
     let wallpaper = try Wallpaper(id: WallpaperID(UUID()), name: WallpaperName(text), pictures: picturesBySlot)
@@ -63,7 +72,7 @@ private func libraryModel(over library: WallpaperLibraryStandIn) -> LibraryModel
         openLibrary: OpenLibrary(library: library),
         openWallpaper: OpenWallpaper(library: library),
         renameWallpaper: RenameWallpaper(library: library),
-        deleteWallpaper: DeleteWallpaper(library: library)
+        deleteWallpaper: DeleteWallpaper(library: library),
     )
 }
 
@@ -99,7 +108,7 @@ struct LibraryModelTests {
         #expect(model.isEmpty)
     }
 
-    @Test func theModelIsOpeningWhileTheLibraryIsBeingRead() async throws {
+    @Test func theModelIsOpeningWhileTheLibraryIsBeingRead() async {
         let library = WallpaperLibraryStandIn()
         await library.fail(.wallpapers, with: .unreadable)
         let model = await openedLibraryModel(over: library)
@@ -113,15 +122,20 @@ struct LibraryModelTests {
         #expect(model.phase == .open)
     }
 
-    @Test func openingALibraryOfThreeListsThemInTheLibrarysOrderWithNamesCountsAndPreviews() async throws {
+    @Test func openingALibraryOfThreeListsThemInTheLibrarysOrderWithNamesCountsAndPreviews(
+    ) async throws {
         let library = WallpaperLibraryStandIn()
         let preview = try previewBytes(width: 32, height: 18)
         let zebra = try await addWallpaper(named: "Zebra", previewsBySlot: [.dawn: preview], to: library)
-        let apple = try await addWallpaper(named: "Apple", previewsBySlot: [.dawn: preview, .night: preview], to: library)
+        let apple = try await addWallpaper(
+            named: "Apple",
+            previewsBySlot: [.dawn: preview, .night: preview],
+            to: library,
+        )
         let mango = try await addWallpaper(
             named: "Mango",
             previewsBySlot: [.dawn: preview, .midday: preview, .dusk: preview],
-            to: library
+            to: library,
         )
         let model = await openedLibraryModel(over: library)
         #expect(model.wallpapers.map(\.id) == [zebra.id, apple.id, mango.id])
@@ -139,9 +153,9 @@ struct LibraryModelTests {
                 .night: previewBytes(width: 20, height: 10),
                 .dawn: previewBytes(width: 30, height: 10),
                 .midday: previewBytes(width: 40, height: 10),
-                .sunrise: previewBytes(width: 10, height: 10)
+                .sunrise: previewBytes(width: 10, height: 10),
             ],
-            to: library
+            to: library,
         )
         let model = await openedLibraryModel(over: library)
         let previews = try #require(model.wallpapers.first?.previews)
@@ -154,7 +168,7 @@ struct LibraryModelTests {
         try await addWallpaper(
             named: "Partly broken",
             previewsBySlot: [.dawn: previewBytes(width: 12, height: 8), .dusk: bytesThatAreNoPicture],
-            to: library
+            to: library,
         )
         let model = await openedLibraryModel(over: library)
         let entry = try #require(model.wallpapers.first)
@@ -195,7 +209,7 @@ struct LibraryModelTests {
         let library = WallpaperLibraryStandIn()
         let preview = try previewBytes(width: 320, height: 180)
         let eightPreviews = Dictionary(uniqueKeysWithValues: Slot.allCases.map { ($0, preview) })
-        for number in 1...100 {
+        for number in 1 ... 100 {
             try await addWallpaper(named: "Wallpaper \(number)", previewsBySlot: eightPreviews, to: library)
         }
         let model = libraryModel(over: library)
@@ -233,7 +247,9 @@ struct LibraryModelTests {
     }
 
     @Test(arguments: [WallpaperLibraryError.unreadable, .unavailable])
-    func openingAgainAfterTheLibraryWorksAgainGivesThePhaseOpen(failure: WallpaperLibraryError) async throws {
+    func openingAgainAfterTheLibraryWorksAgainGivesThePhaseOpen(
+        failure: WallpaperLibraryError,
+    ) async throws {
         let library = WallpaperLibraryStandIn()
         let kept = try await addWallpaper(named: "Kept", to: library)
         await library.fail(.wallpapers, with: failure)
@@ -288,7 +304,8 @@ struct LibraryModelTests {
         #expect(model.problem == .wallpaperGone)
     }
 
-    @Test func selectingWhenTheLibraryIsUnavailableKeepsTheSelectionAndSaysTheChangeWasNotKept() async throws {
+    @Test func selectingWhenTheLibraryIsUnavailableKeepsTheSelectionAndSaysTheChangeWasNotKept(
+    ) async throws {
         let library = WallpaperLibraryStandIn()
         let chosen = try await addWallpaper(named: "Chosen", to: library)
         let model = await openedLibraryModel(over: library)
@@ -340,7 +357,7 @@ struct LibraryModelTests {
         let wallpaper = try await addWallpaper(
             named: "Summer",
             previewsBySlot: [.dawn: previewBytes(width: 14, height: 9), .night: previewBytes(width: 16, height: 9)],
-            to: library
+            to: library,
         )
         let model = await openedLibraryModel(over: library)
         model.startRenaming(wallpaper.id)
@@ -452,7 +469,8 @@ struct LibraryModelTests {
         #expect(model.nameProblem == nil)
     }
 
-    @Test func renamingWhenTheLibraryIsUnavailableKeepsTheOldNameAndSaysTheChangeWasNotKept() async throws {
+    @Test func renamingWhenTheLibraryIsUnavailableKeepsTheOldNameAndSaysTheChangeWasNotKept(
+    ) async throws {
         let library = WallpaperLibraryStandIn()
         let wallpaper = try await addWallpaper(named: "Summer", to: library)
         let model = await openedLibraryModel(over: library)

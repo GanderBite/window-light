@@ -1,11 +1,11 @@
 import Application
 import CoreGraphics
 import Domain
+@testable import Features
 import Foundation
 import ImageIO
 import SwiftUI
 import Testing
-@testable import Features
 
 private enum PreviewMakingFailure: Error {
     case noDrawingContext, noImage, noEncoder, notEncoded
@@ -19,22 +19,35 @@ private func previewBytes() throws -> Data {
         bitsPerComponent: 8,
         bytesPerRow: 0,
         space: CGColorSpaceCreateDeviceRGB(),
-        bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue,
     ) else { throw PreviewMakingFailure.noDrawingContext }
+
     context.setFillColor(red: 0.2, green: 0.5, blue: 0.9, alpha: 1)
     context.fill(CGRect(x: 0, y: 0, width: 32, height: 18))
     guard let image = context.makeImage() else { throw PreviewMakingFailure.noImage }
+
     let encoded = NSMutableData()
-    guard let destination = CGImageDestinationCreateWithData(encoded as CFMutableData, "public.jpeg" as CFString, 1, nil) else {
+    guard let destination = CGImageDestinationCreateWithData(
+        encoded as CFMutableData,
+        "public.jpeg" as CFString,
+        1,
+        nil,
+    ) else {
         throw PreviewMakingFailure.noEncoder
     }
+
     CGImageDestinationAddImage(destination, image, nil)
     guard CGImageDestinationFinalize(destination) else { throw PreviewMakingFailure.notEncoded }
+
     return encoded as Data
 }
 
 @discardableResult
-private func addWallpaper(named text: String, filling slots: [Slot], to library: WallpaperLibraryStandIn) async throws -> Wallpaper {
+private func addWallpaper(
+    named text: String,
+    filling slots: [Slot],
+    to library: WallpaperLibraryStandIn,
+) async throws -> Wallpaper {
     let picturesBySlot = Dictionary(uniqueKeysWithValues: slots.map { ($0, Picture(id: PictureID(UUID()))) })
     let wallpaper = try Wallpaper(id: WallpaperID(UUID()), name: WallpaperName(text), pictures: picturesBySlot)
     var contents: [PictureID: Data] = [:]
@@ -53,7 +66,7 @@ private func libraryModel(over library: WallpaperLibraryStandIn) -> LibraryModel
         openLibrary: OpenLibrary(library: library),
         openWallpaper: OpenWallpaper(library: library),
         renameWallpaper: RenameWallpaper(library: library),
-        deleteWallpaper: DeleteWallpaper(library: library)
+        deleteWallpaper: DeleteWallpaper(library: library),
     )
 }
 
@@ -147,7 +160,11 @@ struct LibraryScreenTests {
         await model.open()
         try #require(model.isEmpty)
         let withoutCreating = try renderedSize(of: LibraryScreen(model: model), width: 500, height: nil)
-        let withCreating = try renderedSize(of: LibraryScreen(model: model, createWallpaper: {}), width: 500, height: nil)
+        let withCreating = try renderedSize(
+            of: LibraryScreen(model: model, createWallpaper: {}),
+            width: 500,
+            height: nil,
+        )
         #expect(model.isEmpty)
         #expect(withCreating.height > withoutCreating.height)
     }

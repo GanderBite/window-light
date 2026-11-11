@@ -3,7 +3,7 @@ import Domain
 import Foundation
 
 actor WallpaperLibraryStandIn: WallpaperLibrary {
-    enum Call: Hashable, Sendable {
+    enum Call: Hashable {
         case wallpapers
         case wallpaper(WallpaperID)
         case picturePreviews(WallpaperID)
@@ -14,7 +14,7 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
         case rememberAsLastWorkedOn(WallpaperID)
     }
 
-    enum CallKind: Hashable, Sendable {
+    enum CallKind: Hashable {
         case wallpapers, wallpaper, picturePreviews, add, keep, remove, wallpaperLastWorkedOn, rememberAsLastWorkedOn
     }
 
@@ -27,6 +27,7 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
 
     var lastWorkedOn: WallpaperID? {
         guard let rememberedLastWorkedOn, holds(rememberedLastWorkedOn) else { return nil }
+
         return rememberedLastWorkedOn
     }
 
@@ -43,7 +44,16 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
     }
 
     func failEveryCall(with error: WallpaperLibraryError) {
-        for kind in [CallKind.wallpapers, .wallpaper, .picturePreviews, .add, .keep, .remove, .wallpaperLastWorkedOn, .rememberAsLastWorkedOn] {
+        for kind in [
+            CallKind.wallpapers,
+            .wallpaper,
+            .picturePreviews,
+            .add,
+            .keep,
+            .remove,
+            .wallpaperLastWorkedOn,
+            .rememberAsLastWorkedOn,
+        ] {
             failures[kind] = error
         }
     }
@@ -64,12 +74,14 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
     func wallpaper(_ id: WallpaperID) async throws(WallpaperLibraryError) -> Wallpaper {
         try await receive(.wallpaper(id))
         guard let found = storedWallpaper(id) else { throw .notFound }
+
         return found
     }
 
     func picturePreviews(of wallpaper: WallpaperID) async throws(WallpaperLibraryError) -> [PictureID: Data] {
         try await receive(.picturePreviews(wallpaper))
         guard let found = storedWallpaper(wallpaper) else { throw .notFound }
+
         var previews: [PictureID: Data] = [:]
         for picture in found.picturesInDayOrder {
             previews[picture.id] = storedPicturePreviews[picture.id]
@@ -80,13 +92,14 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
     func add(
         _ wallpaper: Wallpaper,
         pictureContents: [PictureID: Data],
-        picturePreviews: [PictureID: Data]
+        picturePreviews: [PictureID: Data],
     ) async throws(WallpaperLibraryError) {
         try await receive(.add(wallpaper.id))
         let pictureIDs = wallpaper.picturesInDayOrder.map(\.id)
         guard pictureIDs.allSatisfy({ pictureContents[$0] != nil && picturePreviews[$0] != nil }) else {
             throw .unexpected(description: "A picture has no content or no preview.")
         }
+
         storedWallpapers.append(wallpaper)
         for pictureID in pictureIDs {
             storedPicturePreviews[pictureID] = picturePreviews[pictureID]
@@ -96,12 +109,14 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
     func keep(_ wallpaper: Wallpaper) async throws(WallpaperLibraryError) {
         try await receive(.keep(wallpaper.id))
         guard let index = storedWallpapers.firstIndex(where: { $0.id == wallpaper.id }) else { throw .notFound }
+
         storedWallpapers[index] = wallpaper
     }
 
     func remove(_ wallpaper: WallpaperID) async throws(WallpaperLibraryError) {
         try await receive(.remove(wallpaper))
         guard let index = storedWallpapers.firstIndex(where: { $0.id == wallpaper }) else { return }
+
         for picture in storedWallpapers[index].picturesInDayOrder {
             storedPicturePreviews[picture.id] = nil
         }
@@ -116,6 +131,7 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
     func rememberAsLastWorkedOn(_ wallpaper: WallpaperID) async throws(WallpaperLibraryError) {
         try await receive(.rememberAsLastWorkedOn(wallpaper))
         guard holds(wallpaper) else { throw .notFound }
+
         rememberedLastWorkedOn = wallpaper
     }
 

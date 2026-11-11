@@ -1,16 +1,18 @@
+import Application
 import CoreGraphics
 import Foundation
 import ImageIO
+import Infrastructure
 import Testing
 import UniformTypeIdentifiers
-import Application
-import Infrastructure
 
 private struct PixelSize: Equatable, CustomStringConvertible {
     let width: Int
     let height: Int
 
-    var description: String { "\(width) × \(height)" }
+    var description: String {
+        "\(width) × \(height)"
+    }
 }
 
 private enum PictureKind {
@@ -47,10 +49,11 @@ private func drawnImage(of size: PixelSize) throws -> CGImage {
         bitsPerComponent: 8,
         bytesPerRow: 0,
         space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
-        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue,
     ) else {
         throw PictureMakingFailure.drawingFailed
     }
+
     context.setFillColor(red: 0.9, green: 0.6, blue: 0.2, alpha: 1)
     context.fill(CGRect(x: 0, y: 0, width: size.width, height: size.height))
     context.setFillColor(red: 0.1, green: 0.2, blue: 0.7, alpha: 1)
@@ -58,6 +61,7 @@ private func drawnImage(of size: PixelSize) throws -> CGImage {
     guard let image = context.makeImage() else {
         throw PictureMakingFailure.drawingFailed
     }
+
     return image
 }
 
@@ -67,25 +71,30 @@ private func pictureContent(_ kind: PictureKind, frames: [PictureFrame]) throws 
         content as CFMutableData,
         kind.typeIdentifier,
         frames.count,
-        nil
+        nil,
     ) else {
         throw PictureMakingFailure.encodingFailed
     }
+
     for frame in frames {
         var properties: [CFString: Any] = [:]
         if let orientation = frame.orientation {
             properties[kCGImagePropertyOrientation] = orientation
         }
-        CGImageDestinationAddImage(destination, try drawnImage(of: frame.size), properties as CFDictionary)
+        try CGImageDestinationAddImage(destination, drawnImage(of: frame.size), properties as CFDictionary)
     }
     guard CGImageDestinationFinalize(destination) else {
         throw PictureMakingFailure.encodingFailed
     }
+
     return content as Data
 }
 
 private func pictureContent(_ kind: PictureKind, width: Int, height: Int, orientation: Int? = nil) throws -> Data {
-    try pictureContent(kind, frames: [PictureFrame(size: PixelSize(width: width, height: height), orientation: orientation)])
+    try pictureContent(
+        kind,
+        frames: [PictureFrame(size: PixelSize(width: width, height: height), orientation: orientation)],
+    )
 }
 
 private func pixelSize(of content: Data) throws -> PixelSize {
@@ -109,47 +118,48 @@ struct ImageIOPicturePreviewsTests {
     @Test func aWidePictureOf1600By900GivesAPreviewOf320By180() async throws {
         let picture = try pictureContent(.png, width: 1600, height: 900)
 
-        #expect(try pixelSize(of: try await preview(of: picture)) == PixelSize(width: 320, height: 180))
+        #expect(try await pixelSize(of: preview(of: picture)) == PixelSize(width: 320, height: 180))
     }
 
     @Test func aTallPictureOf900By1600GivesAPreviewOf180By320() async throws {
         let picture = try pictureContent(.png, width: 900, height: 1600)
 
-        #expect(try pixelSize(of: try await preview(of: picture)) == PixelSize(width: 180, height: 320))
+        #expect(try await pixelSize(of: preview(of: picture)) == PixelSize(width: 180, height: 320))
     }
 
     @Test func aSquarePictureOf1000By1000GivesAPreviewOf320By320() async throws {
         let picture = try pictureContent(.png, width: 1000, height: 1000)
 
-        #expect(try pixelSize(of: try await preview(of: picture)) == PixelSize(width: 320, height: 320))
+        #expect(try await pixelSize(of: preview(of: picture)) == PixelSize(width: 320, height: 320))
     }
 
     @Test func aPictureSmallerThanThePreviewKeepsItsSizeOf100By50() async throws {
         let picture = try pictureContent(.png, width: 100, height: 50)
 
-        #expect(try pixelSize(of: try await preview(of: picture)) == PixelSize(width: 100, height: 50))
+        #expect(try await pixelSize(of: preview(of: picture)) == PixelSize(width: 100, height: 50))
     }
 
     @Test(arguments: [PictureKind.png, .jpeg, .tiff])
-    fileprivate func thePreviewOfAPictureOfAnyKindIsAJPEGImage(kind: PictureKind) async throws {
+    private func thePreviewOfAPictureOfAnyKindIsAJPEGImage(kind: PictureKind) async throws {
         let picture = try pictureContent(kind, width: 800, height: 600)
 
-        #expect(try kindIdentifier(of: try await preview(of: picture)) == UTType.jpeg.identifier)
+        #expect(try await kindIdentifier(of: preview(of: picture)) == UTType.jpeg.identifier)
     }
 
-    @Test func aPictureStoredAs400By200AndMarkedAsRotatedGivesAnUprightPreviewOf160By320() async throws {
+    @Test func aPictureStoredAs400By200AndMarkedAsRotatedGivesAnUprightPreviewOf160By320(
+    ) async throws {
         let picture = try pictureContent(.jpeg, width: 400, height: 200, orientation: rotatedNinetyDegreesClockwise)
 
-        #expect(try pixelSize(of: try await preview(of: picture)) == PixelSize(width: 160, height: 320))
+        #expect(try await pixelSize(of: preview(of: picture)) == PixelSize(width: 160, height: 320))
     }
 
     @Test func aPictureWithSeveralFramesGivesAPreviewOfItsFirstFrame() async throws {
         let picture = try pictureContent(.tiff, frames: [
             PictureFrame(size: PixelSize(width: 200, height: 100)),
-            PictureFrame(size: PixelSize(width: 100, height: 300))
+            PictureFrame(size: PixelSize(width: 100, height: 300)),
         ])
 
-        #expect(try pixelSize(of: try await preview(of: picture)) == PixelSize(width: 200, height: 100))
+        #expect(try await pixelSize(of: preview(of: picture)) == PixelSize(width: 200, height: 100))
     }
 
     @Test func bytesThatAreNotAPictureAreReportedAsUnreadable() async {

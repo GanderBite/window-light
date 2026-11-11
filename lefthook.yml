@@ -10,3 +10,9 @@ pre-commit:
     - name: swift sources
       glob: "*.swift"
       run: .claude/hooks/check-swift-source.py --staged
+    - name: swift format
+      glob: "*.swift"
+      run: swiftformat --lint {staged_files}
+    - name: swift lint
+      glob: "*.swift"
+      run: swiftlint lint --quiet --force-exclude {staged_files}

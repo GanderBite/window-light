@@ -1,5 +1,5 @@
-import Testing
 @testable import Domain
+import Testing
 
 private func name(_ text: String) throws -> WallpaperName {
     try WallpaperName(text)
@@ -59,7 +59,7 @@ struct WallpaperNameTests {
     @Test(arguments: [
         (["Wallpaper 1"], "Wallpaper 2"),
         (["Wallpaper 1", "Wallpaper 3"], "Wallpaper 2"),
-        (["Wallpaper 2"], "Wallpaper 1")
+        (["Wallpaper 2"], "Wallpaper 1"),
     ])
     func theDefaultNameTakesTheLowestUnusedNumber(inUse: [String], expected: String) throws {
         let defaultName = try WallpaperName.defaultName(startingWith: "Wallpaper", unusedAmong: names(inUse))

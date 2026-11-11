@@ -17,8 +17,8 @@ public struct LibraryWallpaper: Identifiable, Equatable {
         self.previews = previews
     }
 
-    func renamed(as renamedWallpaper: Wallpaper) -> LibraryWallpaper {
-        LibraryWallpaper(showing: renamedWallpaper, withPreviews: previews)
+    func renamed(as renamedWallpaper: Wallpaper) -> Self {
+        Self(showing: renamedWallpaper, withPreviews: previews)
     }
 
     @concurrent
@@ -40,6 +40,7 @@ public struct LibraryWallpaper: Identifiable, Equatable {
     private static func decodedImage(from previewBytes: Data) -> CGImage? {
         let decodeNow = [kCGImageSourceShouldCacheImmediately: true] as CFDictionary
         guard let source = CGImageSourceCreateWithData(previewBytes as CFData, nil) else { return nil }
+
         return CGImageSourceCreateImageAtIndex(source, 0, decodeNow)
     }
 }

@@ -1,18 +1,19 @@
-import Foundation
-import Testing
 import Application
 import Domain
+import Foundation
+import Testing
 
 private func addWallpaper(to library: WallpaperLibraryStandIn, stem: String = "Wallpaper") async throws -> Wallpaper {
     try await CreateWallpaper(library: library, previews: PicturePreviewsStandIn())
         .execute(
             pictureContentsBySlot: [.dawn: Data("dawn \(stem)".utf8), .dusk: Data("dusk \(stem)".utf8)],
-            defaultNameStem: stem
+            defaultNameStem: stem,
         )
 }
 
 struct DeleteWallpaperTests {
-    @Test func deletingAWallpaperRemovesItWithItsPictureContentsAndPreviewsAndLeavesTheOthers() async throws {
+    @Test func deletingAWallpaperRemovesItWithItsPictureContentsAndPreviewsAndLeavesTheOthers(
+    ) async throws {
         let library = WallpaperLibraryStandIn()
         let doomed = try await addWallpaper(to: library, stem: "Doomed")
         let other = try await addWallpaper(to: library, stem: "Other")
@@ -21,8 +22,8 @@ struct DeleteWallpaperTests {
         try await DeleteWallpaper(library: library).execute(doomed.id)
 
         #expect(await library.storedWallpapers == [other])
-        #expect(Set(await library.storedPictureContents.keys) == otherPictureIDs)
-        #expect(Set(await library.storedPicturePreviews.keys) == otherPictureIDs)
+        #expect(await Set(library.storedPictureContents.keys) == otherPictureIDs)
+        #expect(await Set(library.storedPicturePreviews.keys) == otherPictureIDs)
     }
 
     @Test func deletingAWallpaperThatIsNotInTheLibrarySucceedsAndChangesNothing() async throws {

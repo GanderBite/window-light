@@ -12,7 +12,7 @@ public struct CreateWallpaper: Sendable {
 
     public func execute(
         pictureContentsBySlot: [Slot: Data],
-        defaultNameStem: String
+        defaultNameStem: String,
     ) async throws(CreateWallpaperError) -> Wallpaper {
         let name = try await unusedDefaultName(startingWith: defaultNameStem)
         let picturesBySlot = pictureContentsBySlot.mapValues { _ in Picture(id: PictureID(UUID())) }
@@ -21,6 +21,7 @@ public struct CreateWallpaper: Sendable {
         var picturePreviews: [PictureID: Data] = [:]
         for slot in Slot.allCases {
             guard let picture = picturesBySlot[slot], let content = pictureContentsBySlot[slot] else { continue }
+
             pictureContents[picture.id] = content
             picturePreviews[picture.id] = try await preview(of: content, in: slot)
         }
@@ -43,7 +44,7 @@ public struct CreateWallpaper: Sendable {
             return try WallpaperName.defaultName(startingWith: stem, unusedAmong: wallpapersInLibrary.map(\.name))
         } catch {
             switch error {
-            case .tooLong(let limit): throw .defaultNameTooLong(limit: limit)
+            case let .tooLong(limit): throw .defaultNameTooLong(limit: limit)
             case .empty: throw .unavailable(description: "The default name of a wallpaper came out empty.")
             }
         }
@@ -51,7 +52,7 @@ public struct CreateWallpaper: Sendable {
 
     private static func newWallpaper(
         named name: WallpaperName,
-        pictures: [Slot: Picture]
+        pictures: [Slot: Picture],
     ) throws(CreateWallpaperError) -> Wallpaper {
         do throws(WallpaperError) {
             return try Wallpaper(id: WallpaperID(UUID()), name: name, pictures: pictures)
@@ -69,7 +70,7 @@ public struct CreateWallpaper: Sendable {
         } catch {
             switch error {
             case .unreadable: throw .unreadablePicture(in: slot)
-            case .unexpected(let description): throw .unavailable(description: description)
+            case let .unexpected(description): throw .unavailable(description: description)
             }
         }
     }

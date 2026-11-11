@@ -8,7 +8,7 @@ public protocol WallpaperLibrary: Sendable {
     func add(
         _ wallpaper: Wallpaper,
         pictureContents: [PictureID: Data],
-        picturePreviews: [PictureID: Data]
+        picturePreviews: [PictureID: Data],
     ) async throws(WallpaperLibraryError)
     func keep(_ wallpaper: Wallpaper) async throws(WallpaperLibraryError)
     func remove(_ wallpaper: WallpaperID) async throws(WallpaperLibraryError)
@@ -33,7 +33,7 @@ extension WallpaperLibraryError {
         case .noSpaceLeft: "There is no space left for the wallpaper library."
         case .unreadable: "The wallpaper library cannot be read."
         case .unavailable: "The wallpaper library is unavailable."
-        case .unexpected(let description): description
+        case let .unexpected(description): description
         }
     }
 }

@@ -444,6 +444,56 @@ class SwiftSourceTests(HookTestCase):
         )
 
 
+@unittest.skipUnless(shutil.which("swiftformat") and shutil.which("swiftlint"), "needs swiftformat and swiftlint")
+class FormatAndLintSwiftTests(HookTestCase):
+    def setUp(self):
+        super().setUp()
+        for configuration in (".swiftformat", ".swiftlint.yml"):
+            shutil.copy(os.path.join(os.path.dirname(CLAUDE_DIRECTORY), configuration), self.project)
+
+    def after_writing(self, relative_path, content):
+        file_path = os.path.join(self.project, relative_path)
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, "w", encoding="utf-8") as written:
+            written.write(content)
+        environment = dict(os.environ, CLAUDE_PROJECT_DIR=self.project, TMPDIR=self.temporary_files)
+        payload = {
+            "session_id": "test-session",
+            "cwd": self.project,
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Write",
+            "tool_input": {"file_path": file_path, "content": content},
+        }
+        finished = subprocess.run(
+            [sys.executable, "-B", os.path.join(HOOKS_DIRECTORY, "format-and-lint-swift.py")],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            env=environment,
+        )
+        with open(file_path, encoding="utf-8") as kept:
+            return finished, kept.read()
+
+    def test_formats_the_written_file_in_place(self):
+        finished, kept = self.after_writing("Domain/Slot.swift", "struct Slot{let name:String}\n")
+        self.assertEqual(finished.returncode, 0, finished.stderr)
+        self.assertEqual(kept, "struct Slot { let name: String }\n")
+
+    def test_tells_claude_what_the_linter_found(self):
+        source = "struct Slot {\n    let name: String?\n    var shown: String { name! }\n}\n"
+        finished, _ = self.after_writing("Domain/Slot.swift", source)
+        self.assertEqual(finished.returncode, 2)
+        self.assertIn("force_unwrapping", finished.stderr)
+        self.assertIn("Domain/Slot.swift", finished.stderr)
+
+    def test_leaves_other_files_alone(self):
+        for relative_path in ("docs/notes.md", "docs/notes.txt"):
+            with self.subTest(path=relative_path):
+                finished, kept = self.after_writing(relative_path, "struct Slot{let name:String}\n")
+                self.assertEqual(finished.returncode, 0, finished.stderr)
+                self.assertEqual(kept, "struct Slot{let name:String}\n")
+
+
 class GitHookTestCase(RepositoryTestCase):
     def setUp(self):
         super().setUp()

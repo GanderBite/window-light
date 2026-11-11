@@ -13,18 +13,19 @@ public struct WallpaperName: Hashable, Sendable {
         guard trimmedText.count <= Self.longestAllowed else {
             throw .tooLong(limit: Self.longestAllowed)
         }
+
         text = trimmedText
     }
 
     public static func defaultName(
         startingWith stem: String,
-        unusedAmong namesInUse: some Sequence<WallpaperName>
-    ) throws(WallpaperNameError) -> WallpaperName {
+        unusedAmong namesInUse: some Sequence<Self>,
+    ) throws(WallpaperNameError) -> Self {
         let textsInUse = Set(namesInUse.map(\.text))
         var number = 1
         while textsInUse.contains("\(stem) \(number)") {
             number += 1
         }
-        return try WallpaperName("\(stem) \(number)")
+        return try Self("\(stem) \(number)")
     }
 }

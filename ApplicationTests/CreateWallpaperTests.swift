@@ -1,7 +1,7 @@
-import Foundation
-import Testing
 import Application
 import Domain
+import Foundation
+import Testing
 
 private func content(_ text: String) -> Data {
     Data("content \(text)".utf8)
@@ -13,14 +13,15 @@ private func create(
     _ pictureContentsBySlot: [Slot: Data],
     stem: String = "Wallpaper",
     in library: WallpaperLibraryStandIn,
-    previews: PicturePreviewsStandIn = PicturePreviewsStandIn()
+    previews: PicturePreviewsStandIn = PicturePreviewsStandIn(),
 ) async throws(CreateWallpaperError) -> Wallpaper {
     try await CreateWallpaper(library: library, previews: previews)
         .execute(pictureContentsBySlot: pictureContentsBySlot, defaultNameStem: stem)
 }
 
 struct CreateWallpaperTests {
-    @Test func aWallpaperCreatedFromTwoPicturesIsInTheLibraryWithTheirExactBytesAndPreviews() async throws {
+    @Test func aWallpaperCreatedFromTwoPicturesIsInTheLibraryWithTheirExactBytesAndPreviews(
+    ) async throws {
         let library = WallpaperLibraryStandIn()
         let dawnContent = content("dawn")
         let duskContent = content("dusk")
@@ -34,7 +35,7 @@ struct CreateWallpaperTests {
         #expect(await library.storedPictureContents == [dawnPicture.id: dawnContent, duskPicture.id: duskContent])
         #expect(await library.storedPicturePreviews == [
             dawnPicture.id: PicturePreviewsStandIn.preview(of: dawnContent),
-            duskPicture.id: PicturePreviewsStandIn.preview(of: duskContent)
+            duskPicture.id: PicturePreviewsStandIn.preview(of: duskContent),
         ])
     }
 
@@ -90,7 +91,7 @@ struct CreateWallpaperTests {
             try await create(
                 [.dawn: content("dawn"), .midday: middayContent, .night: content("night")],
                 in: library,
-                previews: previews
+                previews: previews,
             )
         }
         #expect(await library.storedWallpapers.isEmpty)
@@ -124,7 +125,7 @@ struct CreateWallpaperTests {
         let middayContent = content("midday")
         let previews = PicturePreviewsStandIn(
             failingFor: middayContent,
-            with: .unexpected(description: "decoder crashed")
+            with: .unexpected(description: "decoder crashed"),
         )
 
         await #expect(throws: CreateWallpaperError.unavailable(description: "decoder crashed")) {
@@ -156,6 +157,7 @@ struct CreateWallpaperTests {
             Issue.record("Expected unavailable, got \(String(describing: thrown))")
             return
         }
+
         #expect(await library.receivedAnAdd == false)
     }
 

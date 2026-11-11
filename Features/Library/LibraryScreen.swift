@@ -18,7 +18,7 @@ public struct LibraryScreen: View {
             .confirmationDialog(
                 Text(verbatim: deleteQuestion),
                 isPresented: isAskingToDelete,
-                titleVisibility: .visible
+                titleVisibility: .visible,
             ) {
                 Button(role: .destructive) {
                     send { await model.confirmDeletion() }
@@ -79,7 +79,7 @@ public struct LibraryScreen: View {
         VStack(spacing: 16) {
             TitledMessage(
                 title: LibraryText.emptyTitle.inTheAppLanguage,
-                message: LibraryText.emptyExplanation.inTheAppLanguage
+                message: LibraryText.emptyExplanation.inTheAppLanguage,
             )
             if let createWallpaper {
                 Button(action: createWallpaper) {
@@ -122,6 +122,7 @@ public struct LibraryScreen: View {
                 guard model.wallpaperBeingRenamed == nil, let openWallpaper = listedOpenWallpaper else {
                     return .ignored
                 }
+
                 model.startRenaming(openWallpaper)
                 return .handled
             }
@@ -142,7 +143,7 @@ public struct LibraryScreen: View {
                 caption: caption,
                 problem: nameProblemText,
                 keep: { proposedName in send { await model.rename(to: proposedName) } },
-                leave: { model.cancelRenaming() }
+                leave: { model.cancelRenaming() },
             )
         } else {
             WallpaperRow(name: wallpaper.name, pictures: wallpaper.previews, caption: caption)
@@ -156,7 +157,7 @@ public struct LibraryScreen: View {
                 if let chosenWallpaper, chosenWallpaper != model.openWallpaperID {
                     send { await model.select(chosenWallpaper) }
                 }
-            }
+            },
         )
     }
 
@@ -167,7 +168,7 @@ public struct LibraryScreen: View {
     private var isAskingToDelete: Binding<Bool> {
         Binding(
             get: { model.wallpaperAwaitingDeletion != nil },
-            set: { _ in }
+            set: { _ in },
         )
     }
 
@@ -178,7 +179,7 @@ public struct LibraryScreen: View {
                 if !stillShowing {
                     model.dismissProblem()
                 }
-            }
+            },
         )
     }
 
@@ -198,13 +199,14 @@ public struct LibraryScreen: View {
     private var nameProblemText: String? {
         switch model.nameProblem {
         case .empty: LibraryText.nameEmpty.inTheAppLanguage
-        case .tooLong(let limit): LibraryText.nameTooLong.inTheAppLanguage(filledWith: limit)
+        case let .tooLong(limit): LibraryText.nameTooLong.inTheAppLanguage(filledWith: limit)
         case nil: nil
         }
     }
 
     private func openOnFirstAppearance() {
         guard !hasAskedToOpen else { return }
+
         hasAskedToOpen = true
         Task { await model.open() }
     }
@@ -214,8 +216,8 @@ public struct LibraryScreen: View {
     }
 }
 
-extension LibraryScreen {
-    public static var defaultWallpaperNameStem: String {
+public extension LibraryScreen {
+    static var defaultWallpaperNameStem: String {
         LibraryText.defaultNameStem.inTheAppLanguage
     }
 }
@@ -235,7 +237,7 @@ private struct WallpaperNameField: View {
         caption: String,
         problem: String?,
         keep: @escaping (String) -> Void,
-        leave: @escaping () -> Void
+        leave: @escaping () -> Void,
     ) {
         self.caption = caption
         self.problem = problem
@@ -249,7 +251,7 @@ private struct WallpaperNameField: View {
             TextField(
                 LibraryText.nameField.inTheAppLanguage,
                 text: $proposedName,
-                selection: $selectedText
+                selection: $selectedText,
             )
             .labelsHidden()
             .accessibilityLabel(Text(verbatim: LibraryText.nameField.inTheAppLanguage))
@@ -277,7 +279,7 @@ private struct WallpaperNameField: View {
     }
 
     private func selectTheWholeName() {
-        selectedText = TextSelection(range: proposedName.startIndex..<proposedName.endIndex)
+        selectedText = TextSelection(range: proposedName.startIndex ..< proposedName.endIndex)
         isFocused = true
     }
 }

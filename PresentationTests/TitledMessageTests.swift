@@ -1,11 +1,11 @@
+import Presentation
 import SwiftUI
 import Testing
-import Presentation
 
 @MainActor
 private func renderedSize(
     of view: some View,
-    proposedWidth: CGFloat? = nil
+    proposedWidth: CGFloat? = nil,
 ) -> CGSize? {
     let renderer = ImageRenderer(content: view)
     if let proposedWidth {
@@ -36,11 +36,11 @@ struct TitledMessageTests {
         let longMessage = String(repeating: "word ", count: 120)
         let long = try #require(renderedSize(
             of: TitledMessage(title: "Title", message: longMessage),
-            proposedWidth: 500
+            proposedWidth: 500,
         ))
         let short = try #require(renderedSize(
             of: TitledMessage(title: "Title", message: "Word"),
-            proposedWidth: 500
+            proposedWidth: 500,
         ))
         #expect(long.height > short.height)
         #expect(long.width <= 500)
