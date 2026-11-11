@@ -96,6 +96,22 @@ jobs:
             OTHER_CODE_SIGN_FLAGS="--requirements $SIGNING_REQUIREMENTS_PATH" \
             CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
             | xcbeautify --renderer github-actions
+      - name: Compare the requirements of development signatures
+        run: |
+          sw_vers
+          archived_app="$ARCHIVE_PATH/Products/Applications/Window Light.app"
+          echo "Archived app, explicit team requirement:"
+          codesign --display --requirements - "$archived_app" 2>&1 | tail -n 1
+          codesign --verify --strict --verbose=2 "$archived_app" || true
+          default_copy="$RUNNER_TEMP/DefaultRequirement.app"
+          cp -R "$archived_app" "$default_copy"
+          codesign --force --sign "Apple Development" \
+            --entitlements WindowLight/WindowLight.entitlements "$default_copy"
+          echo "Copy, requirement codesign derives by default:"
+          codesign --display --requirements - "$default_copy" 2>&1 | tail -n 1
+          codesign --verify --strict --verbose=2 "$default_copy" || true
+          security find-certificate -c "Apple Development" -p "$SIGNING_KEYCHAIN_PATH" \
+            | openssl x509 -noout -subject -nameopt oneline,-esc_msb,utf8 | xxd | head -n 12
       - name: Write the export options
         run: |
           plutil -create xml1 "$EXPORT_OPTIONS_PATH"
