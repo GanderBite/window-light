@@ -42,6 +42,7 @@ The repository carries its own [Claude Code](https://claude.com/claude-code) con
 ├── hooks/          scripts that check Claude's work against the rules
 │   └── tests/      the hooks' own tests
 ├── commands/       the project's slash commands
+├── agents/         helpers that a command starts for one part of its job
 └── skills/         knowledge Claude loads when a task calls for it
 lefthook.yml        runs the same checks from git, for commits made by hand
 ```
@@ -102,11 +103,25 @@ A command is a task Claude carries out the same way every time. Type it in Claud
 
 | Command | What it does |
 |---|---|
+| `/breakdown <issue or description>` | Splits a GitHub issue, or a feature described in words, into tasks. Reads the issue and the issues above it, then proposes tasks that each say what to build, in which files, how to check it and what it depends on. After you confirm, publishes them as sub-issues of type `Sub-Task`, in the milestone of the issue. |
+| `/implement <issue>` | Carries out the Sub-Tasks of an issue, one at a time in dependency order, on the issue's branch. For each one a subagent writes the code and its tests, the command runs the task's checks, and another subagent reviews the change against the task's acceptance criteria and the project's rules. A change that is not accepted is tried again, up to the number of attempts the task allows. An accepted one is committed as `/commit` does it. When every Sub-Task is done, opens the pull request as `/pr` does it. |
 | `/checkout <issue>` | Starts work on a GitHub issue. Reads the issue, then creates and checks out its branch from the default branch, named `<type>/<issue>-<name>`. |
 | `/commit [--push]` | Commits the changes that are not committed yet. Reads the difference from `HEAD`, groups it into logical commits, one per purpose, and creates them with messages that follow the rules. Writes the changelog entry when a change a user can notice has none. With `--push`, also pushes the branch to GitHub. |
 | `/update` | Brings the checked-out branch up to date with the default branch. Rebases it, resolves the conflicts and pushes with `--force-with-lease`. A branch that is part of a git-spice stack is restacked and pushed together with the rest of its stack. |
 | `/pr [draft] [single]` | Opens pull requests for the checked-out branch. A change of up to 400 lines to review becomes one pull request. A larger one is split into a stack of small branches with git-spice. Each pull request gets a title, a short description of what and why, and one label that says how closely to review it: `critical`, `high`, `medium` or `low`. |
 | `/changelog` | Brings `CHANGELOG.md` up to date from the commits since it last changed. `/changelog <what changed>` adds one entry. `/changelog release <version>` turns `Unreleased` into a released version. |
+
+### Subagents
+
+A subagent is a helper that a command starts for one part of its job. It works in a context of its own and hands back a short report, so the command keeps the result and not the files that were read. Every subagent gets the project's rules through the `inject-rule.py` hook.
+
+| Subagent | Started by | What it does |
+|---|---|---|
+| `breakdown-code-scout` | `/breakdown` | Maps the code a piece of work touches today: the files, the exact shape of the types the work will use, the file to follow, and the files several tasks would share. It can only read and search. |
+| `breakdown-verify-scout` | `/breakdown` | Maps how work is checked: the commands that build and test, as the repository writes them, where tests live, and what is checked on a pull request. It can only read and search. |
+| `breakdown-coverage-reviewer` | `/breakdown` | Reads the drafted tasks against the issue they split and the feature above it, without seeing how the tasks were made. Says which scope items, goals, rules and acceptance criteria a task proves, which another issue covers, and which nothing covers. It can only read the files it is given. |
+| `subtask-implementer` | `/implement` | Carries out one Sub-Task in the working tree, tests first, in the files the task names. Commits nothing and reports what it did. |
+| `subtask-reviewer` | `/implement` | Reviews the change made for one Sub-Task before it is committed: every acceptance criterion met and proved by a test, the project's rules followed, nothing built that the task did not ask for. It can only read and search. |
 
 ### Skills
 
