@@ -139,6 +139,7 @@ jobs:
           mkdir -p "$(dirname "$APP_PATH")"
           cp -R "$ARCHIVE_PATH/Products/Applications/Window Light.app" "$APP_PATH"
           cp "$PROVISIONING_PROFILE_PATH" "$APP_PATH/Contents/embedded.provisionprofile"
+          chmod -R u+rwX,go+rX,go-w "$APP_PATH"
           cp WindowLight/WindowLight.entitlements "$ENTITLEMENTS_PATH"
           /usr/libexec/PlistBuddy \
             -c "Add :com.apple.application-identifier string $APPLE_TEAM_ID.$BUNDLE_IDENTIFIER" \
