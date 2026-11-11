@@ -1,23 +1,23 @@
 import Application
 import Domain
 import Foundation
-import Testing
 @testable import Infrastructure
+import Testing
 
 private let readOnlyPermissions = 0o555
 private let writablePermissions = 0o755
-private let sizeOfARealPreview = 20_000
+private let sizeOfARealPreview = 20000
 
 private struct LibraryFolder {
     let surroundings: URL
     let url: URL
 
-    static func make() throws -> LibraryFolder {
+    static func make() throws -> Self {
         let surroundings = FileManager.default.temporaryDirectory
             .appending(path: "FileWallpaperLibraryTests-\(UUID().uuidString)", directoryHint: .isDirectory)
         let url = surroundings.appending(path: "Library", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        return LibraryFolder(surroundings: surroundings, url: url)
+        return Self(surroundings: surroundings, url: url)
     }
 
     func library() -> FileWallpaperLibrary {
@@ -65,7 +65,10 @@ private struct LibraryFolder {
     }
 
     func totalSizeOfFiles() throws -> Int {
-        let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey])
+        let enumerator = FileManager.default.enumerator(
+            at: url,
+            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
+        )
         var total = 0
         for case let item as URL in enumerator?.allObjects ?? [] {
             let values = try item.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
@@ -79,7 +82,9 @@ private struct LibraryFolder {
     func setPermissionsOfEveryFolder(to permissions: Int) throws {
         let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.isDirectoryKey])
         var folders = [url]
-        for case let item as URL in enumerator?.allObjects ?? [] where try item.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true {
+        for case let item as URL in enumerator?.allObjects ?? []
+            where try item.resourceValues(forKeys: [.isDirectoryKey]).isDirectory == true
+        {
             folders.append(item)
         }
         for folder in folders {
@@ -99,7 +104,10 @@ private func withLibraryFolder(_ test: (LibraryFolder) async throws -> Void) asy
     try await test(folder)
 }
 
-private func wallpaper(named name: String = "Lisbon", filling slots: [Slot] = [.dawn, .midday, .night]) throws -> Wallpaper {
+private func wallpaper(
+    named name: String = "Lisbon",
+    filling slots: [Slot] = [.dawn, .midday, .night],
+) throws -> Wallpaper {
     var pictures: [Slot: Picture] = [:]
     for slot in slots {
         pictures[slot] = Picture(id: PictureID(UUID()))
@@ -130,17 +138,17 @@ private func add(_ wallpaper: Wallpaper, to library: FileWallpaperLibrary) async
 
 private func renamed(_ wallpaper: Wallpaper, to newName: String) throws -> Wallpaper {
     var renamedWallpaper = wallpaper
-    renamedWallpaper.rename(to: try WallpaperName(newName))
+    try renamedWallpaper.rename(to: WallpaperName(newName))
     return renamedWallpaper
 }
 
-enum RefusedContent: CaseIterable, Sendable {
+enum RefusedContent: CaseIterable {
     case nameThatIsNotAllowed
     case noPictures
     case onePictureInTwoSlots
 }
 
-enum MissingPart: CaseIterable, Sendable {
+enum MissingPart: CaseIterable {
     case content
     case preview
 }
@@ -155,7 +163,8 @@ struct FileWallpaperLibraryTests {
         }
     }
 
-    @Test func anAddedWallpaperComesBackWithItsIdNameAndPictureInEverySlotAfterARestart() async throws {
+    @Test func anAddedWallpaperComesBackWithItsIdNameAndPictureInEverySlotAfterARestart(
+    ) async throws {
         try await withLibraryFolder { folder in
             let original = try wallpaper(named: "Porto at noon", filling: Slot.allCases)
             try await add(original, to: folder.library())
@@ -169,7 +178,8 @@ struct FileWallpaperLibraryTests {
         }
     }
 
-    @Test func wallpapersComeBackInTheOrderTheyWereAddedAlsoAfterARestartAndAfterTheFirstWasRenamed() async throws {
+    @Test func wallpapersComeBackInTheOrderTheyWereAddedAlsoAfterARestartAndAfterTheFirstWasRenamed(
+    ) async throws {
         try await withLibraryFolder { folder in
             let library = folder.library()
             let first = try wallpaper(named: "Zurich")
@@ -211,13 +221,18 @@ struct FileWallpaperLibraryTests {
         try await withLibraryFolder { folder in
             let original = try wallpaper(filling: [.sunrise, .afternoon, .dusk])
             let givenPreviews = previews(of: original, eachOfSize: 300)
-            try await folder.library().add(original, pictureContents: contents(of: original), picturePreviews: givenPreviews)
+            try await folder.library().add(
+                original,
+                pictureContents: contents(of: original),
+                picturePreviews: givenPreviews,
+            )
 
             #expect(try await folder.library().picturePreviews(of: original.id) == givenPreviews)
         }
     }
 
-    @Test func theStoredContentOfEveryPictureIsTheGivenBytesAndOutlivesTheFileItWasReadFrom() async throws {
+    @Test func theStoredContentOfEveryPictureIsTheGivenBytesAndOutlivesTheFileItWasReadFrom(
+    ) async throws {
         try await withLibraryFolder { folder in
             let original = try wallpaper(filling: [.dawn, .sunset])
             var givenContents: [PictureID: Data] = [:]
@@ -226,14 +241,20 @@ struct FileWallpaperLibraryTests {
                 try content.write(to: importedFile)
                 givenContents[pictureID] = try Data(contentsOf: importedFile)
             }
-            try await folder.library().add(original, pictureContents: givenContents, picturePreviews: previews(of: original))
+            try await folder.library().add(
+                original,
+                pictureContents: givenContents,
+                picturePreviews: previews(of: original),
+            )
             for pictureID in givenContents.keys {
-                try FileManager.default.removeItem(at: folder.surroundings.appending(path: "Imported-\(pictureID.value.uuidString)"))
+                try FileManager.default
+                    .removeItem(at: folder.surroundings.appending(path: "Imported-\(pictureID.value.uuidString)"))
             }
 
             #expect(try await folder.library().wallpaper(original.id) == original)
             for picture in original.picturesInDayOrder {
-                #expect(try Data(contentsOf: folder.storedContentFile(of: picture, in: original)) == givenContents[picture.id])
+                #expect(try Data(contentsOf: folder.storedContentFile(of: picture, in: original)) ==
+                    givenContents[picture.id])
             }
         }
     }
@@ -243,7 +264,7 @@ struct FileWallpaperLibraryTests {
             let original = try wallpaper(named: "Before")
             try await add(original, to: folder.library())
 
-            try await folder.library().keep(try renamed(original, to: "After"))
+            try await folder.library().keep(renamed(original, to: "After"))
 
             #expect(try await folder.library().wallpaper(original.id).name.text == "After")
         }
@@ -258,7 +279,16 @@ struct FileWallpaperLibraryTests {
 
             #expect(document["formatVersion"] as? Int == 1)
             let pictures = try #require(document["pictures"] as? [String: String])
-            #expect(Set(pictures.keys) == ["dawn", "sunrise", "morning", "midday", "afternoon", "sunset", "dusk", "night"])
+            #expect(Set(pictures.keys) == [
+                "dawn",
+                "sunrise",
+                "morning",
+                "midday",
+                "afternoon",
+                "sunset",
+                "dusk",
+                "night",
+            ])
             #expect(pictures["midday"] == original.picture(in: .midday)?.id.value.uuidString)
         }
     }
@@ -266,7 +296,7 @@ struct FileWallpaperLibraryTests {
     @Test func askingForAWallpaperNotInTheLibraryThrowsNotFound() async throws {
         try await withLibraryFolder { folder in
             let library = folder.library()
-            try await add(try wallpaper(), to: library)
+            try await add(wallpaper(), to: library)
 
             await #expect(throws: WallpaperLibraryError.notFound) {
                 try await library.wallpaper(WallpaperID(UUID()))
@@ -277,7 +307,7 @@ struct FileWallpaperLibraryTests {
     @Test func askingForThePreviewsOfAWallpaperNotInTheLibraryThrowsNotFound() async throws {
         try await withLibraryFolder { folder in
             let library = folder.library()
-            try await add(try wallpaper(), to: library)
+            try await add(wallpaper(), to: library)
 
             await #expect(throws: WallpaperLibraryError.notFound) {
                 try await library.picturePreviews(of: WallpaperID(UUID()))
@@ -302,7 +332,7 @@ struct FileWallpaperLibraryTests {
     @Test func rememberingAWallpaperNotInTheLibraryAsLastWorkedOnThrowsNotFound() async throws {
         try await withLibraryFolder { folder in
             let library = folder.library()
-            try await add(try wallpaper(), to: library)
+            try await add(wallpaper(), to: library)
 
             await #expect(throws: WallpaperLibraryError.notFound) {
                 try await library.rememberAsLastWorkedOn(WallpaperID(UUID()))
@@ -312,7 +342,9 @@ struct FileWallpaperLibraryTests {
     }
 
     @Test(arguments: MissingPart.allCases)
-    func addingAWallpaperWithAPictureMissingAPartThrowsUnexpectedAndStoresNothing(missing: MissingPart) async throws {
+    func addingAWallpaperWithAPictureMissingAPartThrowsUnexpectedAndStoresNothing(
+        missing: MissingPart,
+    ) async throws {
         try await withLibraryFolder { folder in
             let library = folder.library()
             let earlier = try wallpaper(named: "Earlier")
@@ -330,6 +362,7 @@ struct FileWallpaperLibraryTests {
                 try await library.add(incomplete, pictureContents: givenContents, picturePreviews: givenPreviews)
             } throws: { error in
                 guard case .unexpected = error as? WallpaperLibraryError else { return false }
+
                 return true
             }
             #expect(try await library.wallpapers() == [earlier])
@@ -342,7 +375,8 @@ struct FileWallpaperLibraryTests {
         }
     }
 
-    @Test func addingIntoAFolderThatCannotBeWrittenThrowsNotPermittedAndLeavesTheLibraryAsItWas() async throws {
+    @Test func addingIntoAFolderThatCannotBeWrittenThrowsNotPermittedAndLeavesTheLibraryAsItWas(
+    ) async throws {
         try await withLibraryFolder { folder in
             let library = folder.library()
             let earlier = try wallpaper(named: "Earlier")
@@ -371,11 +405,17 @@ struct FileWallpaperLibraryTests {
             try await add(earlier, to: library)
             let refused = try wallpaper(named: "Refused", filling: Slot.allCases)
 
-            try FileManager.default.setAttributes([.posixPermissions: readOnlyPermissions], ofItemAtPath: folder.wallpapersFolder.path)
+            try FileManager.default.setAttributes(
+                [.posixPermissions: readOnlyPermissions],
+                ofItemAtPath: folder.wallpapersFolder.path,
+            )
             await #expect(throws: WallpaperLibraryError.notPermitted) {
                 try await add(refused, to: library)
             }
-            try FileManager.default.setAttributes([.posixPermissions: writablePermissions], ofItemAtPath: folder.wallpapersFolder.path)
+            try FileManager.default.setAttributes(
+                [.posixPermissions: writablePermissions],
+                ofItemAtPath: folder.wallpapersFolder.path,
+            )
 
             #expect(try FileManager.default.contentsOfDirectory(atPath: folder.beingAddedFolder.path).isEmpty)
             #expect(!folder.pathsOfEverythingInside().contains { $0.contains(refused.id.value.uuidString) })
@@ -383,7 +423,8 @@ struct FileWallpaperLibraryTests {
         }
     }
 
-    @Test func aWallpaperFolderWithoutItsDocumentMakesTheLibraryUnreadableWhileThatWallpaperIsNotFound() async throws {
+    @Test func aWallpaperFolderWithoutItsDocumentMakesTheLibraryUnreadableWhileThatWallpaperIsNotFound(
+    ) async throws {
         try await withLibraryFolder { folder in
             let incomplete = try wallpaper()
             try await add(incomplete, to: folder.library())
@@ -402,7 +443,10 @@ struct FileWallpaperLibraryTests {
         try await withLibraryFolder { folder in
             let regularFile = folder.surroundings.appending(path: "NotAFolder")
             try Data("a file, not a folder".utf8).write(to: regularFile)
-            let library = FileWallpaperLibrary(folder: regularFile.appending(path: "Library", directoryHint: .isDirectory))
+            let library = FileWallpaperLibrary(folder: regularFile.appending(
+                path: "Library",
+                directoryHint: .isDirectory,
+            ))
 
             await #expect(throws: WallpaperLibraryError.unavailable) {
                 try await library.wallpapers()
@@ -417,7 +461,11 @@ struct FileWallpaperLibraryTests {
             try await add(kept, to: library)
             let sizeBefore = try folder.totalSizeOfFiles()
             let removed = try wallpaper(named: "Removed", filling: Slot.allCases)
-            try await library.add(removed, pictureContents: contents(of: removed), picturePreviews: previews(of: removed, eachOfSize: sizeOfARealPreview))
+            try await library.add(
+                removed,
+                pictureContents: contents(of: removed),
+                picturePreviews: previews(of: removed, eachOfSize: sizeOfARealPreview),
+            )
 
             try await library.remove(removed.id)
 
@@ -445,7 +493,8 @@ struct FileWallpaperLibraryTests {
         }
     }
 
-    @Test func aFileOutsideTheLibraryWithTheSameBytesAsAPictureIsLeftAloneByAddKeepAndRemove() async throws {
+    @Test func aFileOutsideTheLibraryWithTheSameBytesAsAPictureIsLeftAloneByAddKeepAndRemove(
+    ) async throws {
         try await withLibraryFolder { folder in
             let library = folder.library()
             let original = try wallpaper()
@@ -459,7 +508,7 @@ struct FileWallpaperLibraryTests {
             try await library.add(original, pictureContents: givenContents, picturePreviews: previews(of: original))
             #expect(try Data(contentsOf: outsideFile) == outsideBytes)
 
-            try await library.keep(try renamed(original, to: "Renamed"))
+            try await library.keep(renamed(original, to: "Renamed"))
             #expect(try Data(contentsOf: outsideFile) == outsideBytes)
 
             try await library.remove(original.id)
@@ -531,7 +580,9 @@ struct FileWallpaperLibraryTests {
     }
 
     @Test(arguments: RefusedContent.allCases)
-    func aWallpaperDocumentWhoseContentTheDomainRefusesMakesTheLibraryUnreadable(refused: RefusedContent) async throws {
+    func aWallpaperDocumentWhoseContentTheDomainRefusesMakesTheLibraryUnreadable(
+        refused: RefusedContent,
+    ) async throws {
         try await withLibraryFolder { folder in
             let stored = try wallpaper(filling: [.dawn, .night])
             try await add(stored, to: folder.library())
@@ -550,7 +601,8 @@ struct FileWallpaperLibraryTests {
         }
     }
 
-    @Test func aFolderLeftUnderBeingAddedIsNotAWallpaperAndIsGoneOnceTheLibraryIsUsed() async throws {
+    @Test
+    func aFolderLeftUnderBeingAddedIsNotAWallpaperAndIsGoneOnceTheLibraryIsUsed() async throws {
         try await withLibraryFolder { folder in
             let complete = try wallpaper(named: "Complete")
             try await add(complete, to: folder.library())
@@ -558,7 +610,10 @@ struct FileWallpaperLibraryTests {
             let scratchFolder = try LibraryFolder.make()
             defer { scratchFolder.remove() }
             try await add(unfinished, to: scratchFolder.library())
-            let leftover = folder.beingAddedFolder.appending(path: unfinished.id.value.uuidString, directoryHint: .isDirectory)
+            let leftover = folder.beingAddedFolder.appending(
+                path: unfinished.id.value.uuidString,
+                directoryHint: .isDirectory,
+            )
             try FileManager.default.createDirectory(at: folder.beingAddedFolder, withIntermediateDirectories: true)
             try FileManager.default.moveItem(at: scratchFolder.wallpaperFolder(of: unfinished), to: leftover)
 
@@ -570,9 +625,13 @@ struct FileWallpaperLibraryTests {
     @Test func aLibraryOfAHundredWallpapersWithEightPicturesEachOpensInUnderASecond() async throws {
         try await withLibraryFolder { folder in
             let filling = folder.library()
-            for number in 1...100 {
+            for number in 1 ... 100 {
                 let added = try wallpaper(named: "Wallpaper \(number)", filling: Slot.allCases)
-                try await filling.add(added, pictureContents: contents(of: added), picturePreviews: previews(of: added, eachOfSize: sizeOfARealPreview))
+                try await filling.add(
+                    added,
+                    pictureContents: contents(of: added),
+                    picturePreviews: previews(of: added, eachOfSize: sizeOfARealPreview),
+                )
             }
             let clock = ContinuousClock()
             let start = clock.now
@@ -604,9 +663,12 @@ struct FileWallpaperLibraryTests {
         (POSIXError(.ENOSPC), .noSpaceLeft),
         (POSIXError(.EDQUOT), .noSpaceLeft),
         (POSIXError(.EROFS), .unavailable),
-        (CocoaError(.fileWriteUnknown, userInfo: [NSUnderlyingErrorKey: POSIXError(.ENOSPC)]), .noSpaceLeft)
+        (CocoaError(.fileWriteUnknown, userInfo: [NSUnderlyingErrorKey: POSIXError(.ENOSPC)]), .noSpaceLeft),
     ] as [(any Error & Sendable, WallpaperLibraryError)])
-    func everyFileSystemFailureIsReportedAsThePortError(failure: any Error & Sendable, expected: WallpaperLibraryError) {
+    func everyFileSystemFailureIsReportedAsThePortError(
+        failure: any Error & Sendable,
+        expected: WallpaperLibraryError,
+    ) {
         #expect(FileWallpaperLibrary.libraryError(describing: failure) == expected)
     }
 
@@ -615,10 +677,11 @@ struct FileWallpaperLibraryTests {
 
         let reported = FileWallpaperLibrary.libraryError(describing: unrecognised)
 
-        guard case .unexpected(let description) = reported else {
+        guard case let .unexpected(description) = reported else {
             Issue.record("Expected unexpected, got \(reported)")
             return
         }
+
         #expect(!description.isEmpty)
     }
 }

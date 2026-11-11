@@ -55,6 +55,22 @@ The tests run with `swift test`. The Test command of Xcode's `WindowLight` schem
 - `swift test` builds every module and runs every test.
 - `swift test --filter DomainTests` runs the tests of one test target.
 
+[xcbeautify](https://github.com/cpisciotta/xcbeautify) makes the output of `xcodebuild` readable. Put it at the end of the command:
+
+```
+set -o pipefail && xcodebuild -project WindowLight.xcodeproj -scheme WindowLight -destination 'platform=macOS' -derivedDataPath DerivedData build | xcbeautify
+```
+
+### Formatting and linting
+
+[SwiftFormat](https://github.com/nicklockwood/SwiftFormat) decides how the code is laid out, and [SwiftLint](https://github.com/realm/SwiftLint) looks for code that is likely wrong or hard to maintain. Their rules are in `.swiftformat` and `.swiftlint.yml` at the root of the repository. The test directories each hold a small `.swiftlint.yml` that lifts the limits on the length of a file and a type.
+
+- `swiftformat .` formats every Swift file.
+- `swiftformat --lint .` reports what would change and changes nothing.
+- `swiftlint` reports every finding. `swiftlint --fix` corrects the ones it can.
+
+A SwiftLint error stops a commit. A warning is shown and does not.
+
 ## Contributing
 
 Contributions are welcome.
@@ -100,10 +116,11 @@ A hook is a script that Claude Code runs at a fixed moment. The hooks here refus
 |---|---|---|
 | `check-commit.py` | before Claude runs a shell command | A commit made with `git` or `git-spice` has a message in the required form: an allowed type, the issue number of the branch, a header of at most 72 characters. The branch name carries an issue number. The message is written out in the command, so no editor opens and nothing is hidden in a variable. A `feat`, `fix` or breaking commit includes `CHANGELOG.md`, or says why not in a `Changelog: none (<reason>)` footer. A plain `git revert` is refused, because it writes a message of its own. |
 | `check-swift-source.py` | before Claude writes or edits a Swift file | No comments in any Swift file, tests included, apart from directives a tool reads. Outside tests: no import that the file's layer may not know, no `try!` and no empty `catch`. Only what the change adds is judged, never what was already in the file. |
+| `format-and-lint-swift.py` | after Claude writes or edits a Swift file | SwiftFormat lays the file out as `.swiftformat` says. SwiftLint then reads it, and Claude is told every finding, warnings included, so it fixes them before it goes on. |
 | `review-design-rules.py` | when Claude is about to finish | If Swift files were changed, Claude has to read them once more and check what no script can check: business rules in the right layer, rich domain objects, deep modules, and errors mapped at each boundary. |
 | `inject-rule.py` | when Claude starts a subagent | The subagent receives all six rules, so delegated work follows them too. |
 
-`review_queue.py` is shared by two of the hooks. It remembers which Swift files a session changed, so the design review covers exactly those.
+`review_queue.py` is shared by the hooks. It finds the project directory and remembers which Swift files a session changed, so the design review covers exactly those.
 
 The hooks have tests. Run them after you change a hook, a rule or `settings.json`:
 
@@ -113,12 +130,14 @@ python3 .claude/hooks/tests/test_hooks.py
 
 ### Git hooks
 
-A commit made by hand in a terminal never passes through Claude Code, so [lefthook](https://lefthook.dev) runs the same two checks from git. `lefthook.yml` at the root of the repository connects them:
+A commit made by hand in a terminal never passes through Claude Code, so [lefthook](https://lefthook.dev) runs the same two checks from git, together with SwiftFormat and SwiftLint. `lefthook.yml` at the root of the repository connects them:
 
 | Git hook | Runs | What it enforces |
 |---|---|---|
 | `commit-msg` | when git has the message of a commit | The same as `check-commit.py` above: the form of the message, the issue number of the branch, and the changelog for a `feat`, `fix` or breaking commit. A message written in an editor is fine here. |
 | `pre-commit` | before git makes a commit that holds Swift files | The same as `check-swift-source.py` above, on the files as they are staged. |
+| `pre-commit` | before git makes a commit that holds Swift files | `swiftformat --lint`: the staged files are formatted as `.swiftformat` says. |
+| `pre-commit` | before git makes a commit that holds Swift files | `swiftlint lint`: the staged files have no finding that `.swiftlint.yml` counts as an error. |
 
 Git hooks are not part of a clone. Switch them on once, in your copy of the repository:
 
@@ -127,7 +146,7 @@ brew install lefthook
 lefthook install
 ```
 
-Two limits are worth knowing. `git commit --no-verify` skips both checks, and nothing forces anyone to run `lefthook install`. The design review and the rules given to subagents have no counterpart in git.
+Two limits are worth knowing. `git commit --no-verify` skips every check, and nothing forces anyone to run `lefthook install`. The design review and the rules given to subagents have no counterpart in git.
 
 ### Commands
 
@@ -187,6 +206,8 @@ The name after `@` is the source's repository name in lowercase: `swiftdata-agen
 
 - Python 3, which runs the hooks. macOS with Xcode's command line tools has it.
 - [lefthook](https://lefthook.dev), installed in your copy with `lefthook install`. It runs the hooks for commits made by hand.
+- [SwiftFormat](https://github.com/nicklockwood/SwiftFormat) and [SwiftLint](https://github.com/realm/SwiftLint). The hooks of Claude Code and of git run both: `brew install swiftformat swiftlint`.
+- [xcbeautify](https://github.com/cpisciotta/xcbeautify), optional, for readable `xcodebuild` output: `brew install xcbeautify`.
 - The [GitHub CLI](https://cli.github.com) (`gh`), signed in. The commands read issues and open pull requests with it.
 - [git-spice](https://abhinav.github.io/git-spice/), signed in with `git-spice auth login`. `/pr` and `/update` manage stacked branches with it.
 

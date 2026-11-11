@@ -15,7 +15,7 @@ struct WindowLightApp: App {
             openLibrary: OpenLibrary(library: library),
             openWallpaper: OpenWallpaper(library: library),
             renameWallpaper: RenameWallpaper(library: library),
-            deleteWallpaper: DeleteWallpaper(library: library)
+            deleteWallpaper: DeleteWallpaper(library: library),
         ))
     }
 

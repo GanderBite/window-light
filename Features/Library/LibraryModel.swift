@@ -26,7 +26,7 @@ public final class LibraryModel {
         openLibrary: OpenLibrary,
         openWallpaper: OpenWallpaper,
         renameWallpaper: RenameWallpaper,
-        deleteWallpaper: DeleteWallpaper
+        deleteWallpaper: DeleteWallpaper,
     ) {
         self.openLibrary = openLibrary
         self.openWallpaper = openWallpaper
@@ -80,6 +80,7 @@ public final class LibraryModel {
 
     public func rename(to proposedName: String) async {
         guard let wallpaper = wallpaperBeingRenamed else { return }
+
         do throws(RenameWallpaperError) {
             let renamed = try await renameWallpaper.execute(wallpaper, to: proposedName)
             wallpapers = wallpapers.map { entry in
@@ -90,7 +91,7 @@ public final class LibraryModel {
             switch error {
             case .nameEmpty:
                 nameProblem = .empty
-            case .nameTooLong(let limit):
+            case let .nameTooLong(limit):
                 nameProblem = .tooLong(limit: limit)
             case .wallpaperGone:
                 removeEntry(of: wallpaper)
@@ -116,6 +117,7 @@ public final class LibraryModel {
 
     public func confirmDeletion() async {
         guard let wallpaper = wallpaperAwaitingDeletion?.id else { return }
+
         wallpaperAwaitingDeletion = nil
         do throws(DeleteWallpaperError) {
             try await deleteWallpaper.execute(wallpaper)

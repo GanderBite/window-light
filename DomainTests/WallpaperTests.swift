@@ -1,6 +1,6 @@
+@testable import Domain
 import Foundation
 import Testing
-@testable import Domain
 
 private func picture() -> Picture {
     Picture(id: PictureID(UUID()))

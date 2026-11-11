@@ -1,5 +1,5 @@
-import Testing
 @testable import Domain
+import Testing
 
 struct SlotTests {
     @Test func slotsFollowTheDayFromDawnToNight() {

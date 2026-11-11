@@ -1,7 +1,7 @@
-import Foundation
-import Testing
 import Application
 import Domain
+import Foundation
+import Testing
 
 private func previewBytes(_ text: String) -> Data {
     Data("preview \(text)".utf8)
@@ -11,7 +11,7 @@ private func previewBytes(_ text: String) -> Data {
 private func addWallpaper(
     named text: String,
     previewTextsBySlot: [Slot: String],
-    to library: WallpaperLibraryStandIn
+    to library: WallpaperLibraryStandIn,
 ) async throws -> Wallpaper {
     let picturesBySlot = previewTextsBySlot.mapValues { _ in Picture(id: PictureID(UUID())) }
     let wallpaper = try Wallpaper(id: WallpaperID(UUID()), name: WallpaperName(text), pictures: picturesBySlot)
@@ -55,10 +55,11 @@ struct OpenLibraryTests {
         #expect(contents.wallpapers.first?.picturePreviewsInDayOrder == [previewBytes("dawn"), previewBytes("night")])
     }
 
-    @Test func openingALibraryOfAHundredFullWallpapersReturnsAHundredEntriesWithEightPreviewsEach() async throws {
+    @Test func openingALibraryOfAHundredFullWallpapersReturnsAHundredEntriesWithEightPreviewsEach(
+    ) async throws {
         let library = WallpaperLibraryStandIn()
         let everySlot = Dictionary(uniqueKeysWithValues: Slot.allCases.map { ($0, "\($0)") })
-        for number in 1...100 {
+        for number in 1 ... 100 {
             try await addWallpaper(named: "Wallpaper \(number)", previewTextsBySlot: everySlot, to: library)
         }
 

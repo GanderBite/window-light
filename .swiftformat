@@ -1,0 +1,23 @@
+--swift-version 6.2
+--language-mode 6
+--exclude .build,.swiftpm,DerivedData
+
+--indent 4
+--max-width 120
+--wrap-arguments before-first
+--wrap-parameters before-first
+--wrap-collections before-first
+--closing-paren balanced
+--trailing-commas always
+--header strip
+--self remove
+--test-case-name-format preserve
+
+--enable blankLinesAfterGuardStatements
+--enable isEmpty
+--enable preferCountWhere
+--enable preferFinalClasses
+--enable preferSwiftTesting
+--enable privateSwiftUIDynamicProperties
+--enable redundantSendable
+--enable wrapMultilineConditionalAssignment

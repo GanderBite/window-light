@@ -10,7 +10,7 @@ public struct RenameWallpaper: Sendable {
 
     public func execute(
         _ wallpaper: WallpaperID,
-        to proposedName: String
+        to proposedName: String,
     ) async throws(RenameWallpaperError) -> Wallpaper {
         let newName = try Self.name(from: proposedName)
         do throws(WallpaperLibraryError) {
@@ -29,7 +29,7 @@ public struct RenameWallpaper: Sendable {
         } catch {
             switch error {
             case .empty: throw .nameEmpty
-            case .tooLong(let limit): throw .nameTooLong(limit: limit)
+            case let .tooLong(limit): throw .nameTooLong(limit: limit)
             }
         }
     }

@@ -9,7 +9,7 @@ struct PicturePreviewsStandIn: PicturePreviews {
 
     init(failingFor unreadableContent: Data? = nil, with failure: PicturePreviewError = .unreadable) {
         self.unreadableContent = unreadableContent
-        self.failureForUnreadableContent = failure
+        failureForUnreadableContent = failure
     }
 
     static func preview(of content: Data) -> Data {

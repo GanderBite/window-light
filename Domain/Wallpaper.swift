@@ -5,6 +5,7 @@ public struct Wallpaper: Identifiable, Equatable, Sendable {
 
     public init(id: WallpaperID, name: WallpaperName, pictures: [Slot: Picture]) throws(WallpaperError) {
         guard !pictures.isEmpty else { throw .noPictures }
+
         var seenIDs = Set<PictureID>()
         for slot in Slot.allCases {
             guard let picture = pictures[slot] else { continue }
