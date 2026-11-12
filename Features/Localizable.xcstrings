@@ -18,6 +18,59 @@
         }
       }
     },
+    "%lld pictures added" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld picture added"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld pictures added"
+                }
+              }
+            }
+          }
+        },
+        "pl" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Dodano %lld zdjęcia"
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Dodano %lld zdjęć"
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Dodano %lld zdjęcie"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Dodano %lld zdjęcia"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "A name can have up to %lld characters." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -52,6 +105,23 @@
         }
       }
     },
+    "A wallpaper can have at most %lld pictures. Choose fewer files." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A wallpaper can have at most %lld pictures. Choose fewer files."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapeta może mieć najwyżej %lld zdjęć. Wybierz mniej plików."
+          }
+        }
+      }
+    },
     "A wallpaper is two to eight of your own pictures. Your Mac changes between them through the day." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -82,6 +152,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Anuluj"
+          }
+        }
+      }
+    },
+    "Choose at least %lld files to create a wallpaper." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose at least %lld files to create a wallpaper."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wybierz co najmniej %lld pliki, aby utworzyć tapetę."
+          }
+        }
+      }
+    },
+    "Choose one file for a time of day." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose one file for a time of day."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wybierz jeden plik dla pory dnia."
           }
         }
       }
@@ -155,6 +259,40 @@
         }
       }
     },
+    "Every time of day in this wallpaper already has a picture." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every time of day in this wallpaper already has a picture."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Każda pora dnia w tej tapecie ma już zdjęcie."
+          }
+        }
+      }
+    },
+    "Importing pictures" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importing pictures"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Importowanie zdjęć"
+          }
+        }
+      }
+    },
     "Its pictures are removed from Window Light and can't be brought back. The files you imported them from stay where they are." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -189,6 +327,23 @@
         }
       }
     },
+    "No pictures were added" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No pictures were added"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie dodano żadnego zdjęcia"
+          }
+        }
+      }
+    },
     "OK" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -202,6 +357,59 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OK"
+          }
+        }
+      }
+    },
+    "Only %lld times of day are free. Choose that many files or fewer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Only %lld time of day is free. Choose one file."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Only %lld times of day are free. Choose that many files or fewer."
+                }
+              }
+            }
+          }
+        },
+        "pl" : {
+          "variations" : {
+            "plural" : {
+              "few" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Wolne są tylko %lld pory dnia. Wybierz najwyżej tyle plików."
+                }
+              },
+              "many" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Wolnych jest tylko %lld pór dnia. Wybierz najwyżej tyle plików."
+                }
+              },
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Wolna jest tylko %lld pora dnia. Wybierz jeden plik."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Wolne są tylko %lld pory dnia. Wybierz najwyżej tyle plików."
+                }
+              }
+            }
           }
         }
       }
@@ -274,6 +482,40 @@
         }
       }
     },
+    "The pictures couldn't be imported. Try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The pictures couldn't be imported. Try again."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie udało się zaimportować zdjęć. Spróbuj ponownie."
+          }
+        }
+      }
+    },
+    "This time of day already has one of your pictures. Remove or move it first." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This time of day already has one of your pictures. Remove or move it first."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ta pora dnia ma już Twoje zdjęcie. Najpierw je usuń lub przenieś."
+          }
+        }
+      }
+    },
     "This wallpaper is no longer in your library." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -287,6 +529,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tej tapety nie ma już w bibliotece."
+          }
+        }
+      }
+    },
+    "This wallpaper needs at least two pictures before it can be applied." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This wallpaper needs at least two pictures before it can be applied."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ta tapeta potrzebuje co najmniej dwóch zdjęć, zanim będzie można ją zastosować."
           }
         }
       }
@@ -376,6 +635,23 @@
         }
       }
     },
+    "Your Mac ran out of storage, so the import stopped. Pictures already added are kept." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your Mac ran out of storage, so the import stopped. Pictures already added are kept."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Na Macu zabrakło miejsca, więc import został przerwany. Dodane już zdjęcia zostały zachowane."
+          }
+        }
+      }
+    },
     "Your wallpapers aren't available right now" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -406,6 +682,125 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nie udało się odczytać Twoich tapet"
+          }
+        }
+      }
+    },
+    "“%@” couldn't be read." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” couldn't be read."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie udało się odczytać pliku „%@”."
+          }
+        }
+      }
+    },
+    "“%@” is already in this wallpaper." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” is already in this wallpaper."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zdjęcie „%@” jest już w tej tapecie."
+          }
+        }
+      }
+    },
+    "“%@” is damaged and couldn't be opened." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” is damaged and couldn't be opened."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plik „%@” jest uszkodzony i nie dało się go otworzyć."
+          }
+        }
+      }
+    },
+    "“%@” is smaller than 1920 × 1080 and may look blurry on the desktop." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” is smaller than 1920 × 1080 and may look blurry on the desktop."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zdjęcie „%@” jest mniejsze niż 1920 × 1080 i może wyglądać nieostro na biurku."
+          }
+        }
+      }
+    },
+    "“%@” is the same as another file you chose." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” is the same as another file you chose."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plik „%@” jest taki sam jak inny wybrany plik."
+          }
+        }
+      }
+    },
+    "“%@” isn't a picture Window Light can use." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” isn't a picture Window Light can use."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "„%@” nie jest zdjęciem, którego Window Light może użyć."
+          }
+        }
+      }
+    },
+    "“%@” wasn't added because your Mac has no storage left." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” wasn't added because your Mac has no storage left."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie dodano pliku „%@”, bo na Macu zabrakło miejsca."
           }
         }
       }
