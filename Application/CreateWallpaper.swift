@@ -63,6 +63,17 @@ public struct CreateWallpaper: Sendable {
             switch error {
             case .noPictures: throw .noPictures
             case .pictureInTwoSlots: throw .unavailable(description: "A picture was given to two slots.")
+            case .tooFewFilesToCreate:
+                throw .unavailable(description: "A wallpaper was created from fewer files than it needs.")
+            case .tooManyFilesToCreate:
+                throw .unavailable(description: "A wallpaper was created from more files than it has slots.")
+            case .noEmptySlot: throw .unavailable(description: "A picture was given to a wallpaper with no empty slot.")
+            case .moreFilesThanEmptySlots:
+                throw .unavailable(description: "More pictures were given than the wallpaper has empty slots.")
+            case .slotHoldsRealPicture:
+                throw .unavailable(description: "A picture was given to a slot that holds a real picture.")
+            case .identicalPictureAlreadyInWallpaper:
+                throw .unavailable(description: "Two identical pictures were given to one wallpaper.")
             }
         }
     }
