@@ -27,6 +27,10 @@ struct PictureImport {
         return ImportedFiles(outcomes: outcomes)
     }
 
+    func read(_ chosenFiles: [URL], besidesPicturesIn wallpaper: Wallpaper) async -> ImportedFiles {
+        await read(chosenFiles, besidesPicturesIdenticalTo: Set(wallpaper.picturesInDayOrder.map(\.fingerprint)))
+    }
+
     private func outcome(
         ofReading file: URL,
         besidesPicturesIdenticalTo fingerprintsInWallpaper: Set<ContentFingerprint>,
@@ -137,9 +141,16 @@ struct ImportedFiles {
         placedAs placements: [PlacedPicture],
         _ store: (ImportedPicture, Slot) async throws(Failure) -> PictureStoringOutcome,
     ) async throws(Failure) -> ImportSummary {
+        try await storePictureByPicture(into: placements.map(\.slot), store)
+    }
+
+    func storePictureByPicture<Failure: Error>(
+        into slots: [Slot],
+        _ store: (ImportedPicture, Slot) async throws(Failure) -> PictureStoringOutcome,
+    ) async throws(Failure) -> ImportSummary {
         var storedCount = 0
-        for (imported, placement) in zip(readablePictures, placements) {
-            guard try await store(imported, placement.slot) == .stored else {
+        for (imported, slot) in zip(readablePictures, slots) {
+            guard try await store(imported, slot) == .stored else {
                 return summary(afterStoring: storedCount, stoppedForLackOfSpace: true)
             }
 
@@ -180,5 +191,20 @@ struct ImportedFiles {
             filesThatMayLookBlurry: filesThatMayLookBlurry,
             stoppedForLackOfSpace: stoppedForLackOfSpace,
         )
+    }
+}
+
+extension WallpaperError {
+    var descriptionOfTheBrokenRule: String {
+        switch self {
+        case .noPictures: "A wallpaper was left without pictures."
+        case .pictureInTwoSlots: "A picture was given to two slots."
+        case .tooFewFilesToCreate: "Too few files were given to create a wallpaper."
+        case .tooManyFilesToCreate: "Too many files were given to create a wallpaper."
+        case .noEmptySlot: "A picture was given to a wallpaper with no empty slot."
+        case .moreFilesThanEmptySlots: "More pictures were given than the wallpaper has empty slots."
+        case .slotHoldsRealPicture: "A picture was given to a slot that holds a real picture."
+        case .identicalPictureAlreadyInWallpaper: "Two identical pictures were given to one wallpaper."
+        }
     }
 }
