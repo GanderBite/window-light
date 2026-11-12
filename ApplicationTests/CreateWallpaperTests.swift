@@ -9,27 +9,49 @@ private func content(_ text: String) -> Data {
 
 private let contentForEverySlot = Dictionary(uniqueKeysWithValues: Slot.allCases.map { ($0, content("\($0)")) })
 
+private func picture(withContent content: Data) throws -> Picture {
+    try Picture(
+        id: PictureID(UUID()),
+        origin: .imported,
+        captureTime: nil,
+        fingerprint: ContentFingerprint("fingerprint of \(content.base64EncodedString())"),
+    )
+}
+
 private func create(
     _ pictureContentsBySlot: [Slot: Data],
     stem: String = "Wallpaper",
     in library: WallpaperLibraryStandIn,
     previews: PicturePreviewsStandIn = PicturePreviewsStandIn(),
-) async throws(CreateWallpaperError) -> Wallpaper {
-    try await CreateWallpaper(library: library, previews: previews)
-        .execute(pictureContentsBySlot: pictureContentsBySlot, defaultNameStem: stem)
+) async throws -> Wallpaper {
+    var picturesBySlot: [Slot: Picture] = [:]
+    var pictureContents: [PictureID: Data] = [:]
+    for (slot, content) in pictureContentsBySlot {
+        let picture = try picture(withContent: content)
+        picturesBySlot[slot] = picture
+        pictureContents[picture.id] = content
+    }
+    return try await CreateWallpaper(library: library, previews: previews)
+        .execute(picturesBySlot: picturesBySlot, pictureContents: pictureContents, defaultNameStem: stem)
 }
 
 struct CreateWallpaperTests {
-    @Test func aWallpaperCreatedFromTwoPicturesIsInTheLibraryWithTheirExactBytesAndPreviews(
+    @Test func aWallpaperCreatedFromTwoPicturesIsInTheLibraryWithExactlyThosePicturesBytesAndPreviews(
     ) async throws {
         let library = WallpaperLibraryStandIn()
         let dawnContent = content("dawn")
         let duskContent = content("dusk")
+        let dawnPicture = try picture(withContent: dawnContent)
+        let duskPicture = try picture(withContent: duskContent)
 
-        let wallpaper = try await create([.dawn: dawnContent, .dusk: duskContent], in: library)
+        let wallpaper = try await CreateWallpaper(library: library, previews: PicturePreviewsStandIn()).execute(
+            picturesBySlot: [.dawn: dawnPicture, .dusk: duskPicture],
+            pictureContents: [dawnPicture.id: dawnContent, duskPicture.id: duskContent],
+            defaultNameStem: "Wallpaper",
+        )
 
-        let dawnPicture = try #require(wallpaper.picture(in: .dawn))
-        let duskPicture = try #require(wallpaper.picture(in: .dusk))
+        #expect(wallpaper.picture(in: .dawn) == dawnPicture)
+        #expect(wallpaper.picture(in: .dusk) == duskPicture)
         #expect(wallpaper.filledSlotCount == 2)
         #expect(await library.storedWallpapers == [wallpaper])
         #expect(await library.storedPictureContents == [dawnPicture.id: dawnContent, duskPicture.id: duskContent])
@@ -37,6 +59,28 @@ struct CreateWallpaperTests {
             dawnPicture.id: PicturePreviewsStandIn.preview(of: dawnContent),
             duskPicture.id: PicturePreviewsStandIn.preview(of: duskContent),
         ])
+    }
+
+    @Test func aPictureGivenWithoutItsContentFailsAsUnavailableAndAddsNothing() async throws {
+        let library = WallpaperLibraryStandIn()
+        let dawnContent = content("dawn")
+        let dawnPicture = try picture(withContent: dawnContent)
+        let duskPicture = try picture(withContent: content("dusk"))
+
+        let thrown = await #expect(throws: CreateWallpaperError.self) {
+            try await CreateWallpaper(library: library, previews: PicturePreviewsStandIn()).execute(
+                picturesBySlot: [.dawn: dawnPicture, .dusk: duskPicture],
+                pictureContents: [dawnPicture.id: dawnContent],
+                defaultNameStem: "Wallpaper",
+            )
+        }
+        guard case .unavailable = thrown else {
+            Issue.record("Expected unavailable, got \(String(describing: thrown))")
+            return
+        }
+
+        #expect(await library.receivedAnAdd == false)
+        #expect(await library.storedWallpapers.isEmpty)
     }
 
     @Test func aWallpaperCreatedWithAPictureInEverySlotHasEightFilledSlots() async throws {

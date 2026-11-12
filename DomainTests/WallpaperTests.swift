@@ -2,8 +2,14 @@
 import Foundation
 import Testing
 
-private func picture() -> Picture {
-    Picture(id: PictureID(UUID()))
+private func picture() throws -> Picture {
+    let id = PictureID(UUID())
+    return try Picture(
+        id: id,
+        origin: .imported,
+        captureTime: nil,
+        fingerprint: ContentFingerprint("fingerprint \(id.value.uuidString)"),
+    )
 }
 
 private func name(_ text: String) throws -> WallpaperName {
@@ -16,9 +22,9 @@ private func wallpaper(named text: String = "Holiday", pictures: [Slot: Picture]
 
 struct WallpaperTests {
     @Test func aWallpaperWithPicturesInThreeSlotsAnswersForEachSlot() throws {
-        let night = picture()
-        let dawn = picture()
-        let midday = picture()
+        let night = try picture()
+        let dawn = try picture()
+        let midday = try picture()
         let wallpaper = try wallpaper(pictures: [.night: night, .dawn: dawn, .midday: midday])
         #expect(wallpaper.filledSlotCount == 3)
         #expect(wallpaper.picture(in: .night) == night)
@@ -29,7 +35,7 @@ struct WallpaperTests {
     }
 
     @Test func aWallpaperWithAPictureInEverySlotHasEightFilledSlots() throws {
-        let everySlot = Dictionary(uniqueKeysWithValues: Slot.allCases.map { ($0, picture()) })
+        let everySlot = try Dictionary(uniqueKeysWithValues: Slot.allCases.map { try ($0, picture()) })
         #expect(try wallpaper(pictures: everySlot).filledSlotCount == 8)
     }
 
@@ -43,15 +49,15 @@ struct WallpaperTests {
         }
     }
 
-    @Test func theSamePictureInTwoSlotsIsRefused() {
-        let repeated = picture()
+    @Test func theSamePictureInTwoSlotsIsRefused() throws {
+        let repeated = try picture()
         #expect(throws: WallpaperError.pictureInTwoSlots(repeated.id)) {
             try wallpaper(pictures: [.dawn: repeated, .dusk: repeated])
         }
     }
 
     @Test func renamingChangesTheNameAndNothingElse() throws {
-        let dawn = picture()
+        let dawn = try picture()
         var wallpaper = try wallpaper(named: "Holiday", pictures: [.dawn: dawn])
         let idBefore = wallpaper.id
         let newName = try name("Sea view")

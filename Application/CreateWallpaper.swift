@@ -11,22 +11,25 @@ public struct CreateWallpaper: Sendable {
     }
 
     public func execute(
-        pictureContentsBySlot: [Slot: Data],
+        picturesBySlot: [Slot: Picture],
+        pictureContents: [PictureID: Data],
         defaultNameStem: String,
     ) async throws(CreateWallpaperError) -> Wallpaper {
         let name = try await unusedDefaultName(startingWith: defaultNameStem)
-        let picturesBySlot = pictureContentsBySlot.mapValues { _ in Picture(id: PictureID(UUID())) }
         let wallpaper = try Self.newWallpaper(named: name, pictures: picturesBySlot)
-        var pictureContents: [PictureID: Data] = [:]
+        var contentsOfPictures: [PictureID: Data] = [:]
         var picturePreviews: [PictureID: Data] = [:]
         for slot in Slot.allCases {
-            guard let picture = picturesBySlot[slot], let content = pictureContentsBySlot[slot] else { continue }
+            guard let picture = picturesBySlot[slot] else { continue }
+            guard let content = pictureContents[picture.id] else {
+                throw .unavailable(description: "The picture in \(slot) was given without its content.")
+            }
 
-            pictureContents[picture.id] = content
+            contentsOfPictures[picture.id] = content
             picturePreviews[picture.id] = try await preview(of: content, in: slot)
         }
         do throws(WallpaperLibraryError) {
-            try await library.add(wallpaper, pictureContents: pictureContents, picturePreviews: picturePreviews)
+            try await library.add(wallpaper, pictureContents: contentsOfPictures, picturePreviews: picturePreviews)
         } catch {
             throw Self.libraryError(for: error)
         }
@@ -59,7 +62,7 @@ public struct CreateWallpaper: Sendable {
         } catch {
             switch error {
             case .noPictures: throw .noPictures
-            case .pictureInTwoSlots: throw .unavailable(description: "A new picture was given to two slots.")
+            case .pictureInTwoSlots: throw .unavailable(description: "A picture was given to two slots.")
             }
         }
     }

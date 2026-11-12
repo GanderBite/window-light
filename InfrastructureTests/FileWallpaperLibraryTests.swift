@@ -110,9 +110,41 @@ private func wallpaper(
 ) throws -> Wallpaper {
     var pictures: [Slot: Picture] = [:]
     for slot in slots {
-        pictures[slot] = Picture(id: PictureID(UUID()))
+        pictures[slot] = try picture(origin: .imported, captureTime: nil)
     }
     return try Wallpaper(id: WallpaperID(UUID()), name: WallpaperName(name), pictures: pictures)
+}
+
+private func picture(origin: PictureOrigin, captureTime: CaptureTime?) throws -> Picture {
+    let id = PictureID(UUID())
+    return try Picture(
+        id: id,
+        origin: origin,
+        captureTime: captureTime,
+        fingerprint: ContentFingerprint("fingerprint of \(id.value.uuidString)"),
+    )
+}
+
+private func wallpaperOfEveryKindOfPicture() throws -> Wallpaper {
+    try Wallpaper(
+        id: WallpaperID(UUID()),
+        name: WallpaperName("Kinds"),
+        pictures: [
+            .dawn: picture(
+                origin: .imported,
+                captureTime: CaptureTime(year: 2026, month: 6, day: 21, hour: 5, minute: 30, second: 0),
+            ),
+            .midday: picture(origin: .imported, captureTime: nil),
+            .night: picture(origin: .madeWithAI, captureTime: nil),
+        ],
+    )
+}
+
+enum DocumentDamage: CaseIterable {
+    case formatVersionOne
+    case unknownOrigin
+    case captureTimeThatIsNoDate
+    case emptyFingerprint
 }
 
 private func contents(of wallpaper: Wallpaper) -> [PictureID: Data] {
@@ -270,15 +302,81 @@ struct FileWallpaperLibraryTests {
         }
     }
 
-    @Test func theStoredDocumentHasFormatVersionOneAndTheFixedSlotWords() async throws {
+    @Test func everyPictureComesBackWithItsIdOriginCaptureTimeAndFingerprintInItsSlotAfterARestart(
+    ) async throws {
+        try await withLibraryFolder { folder in
+            let original = try wallpaperOfEveryKindOfPicture()
+            try await add(original, to: folder.library())
+
+            let restored = try await folder.library().wallpaper(original.id)
+
+            for slot in Slot.allCases {
+                let originalPicture = original.picture(in: slot)
+                let restoredPicture = restored.picture(in: slot)
+                #expect(restoredPicture?.id == originalPicture?.id)
+                #expect(restoredPicture?.origin == originalPicture?.origin)
+                #expect(restoredPicture?.captureTime == originalPicture?.captureTime)
+                #expect(restoredPicture?.fingerprint == originalPicture?.fingerprint)
+            }
+            #expect(restored.filledSlotCount == 3)
+        }
+    }
+
+    @Test func theStoredDocumentHasFormatVersionTwoAndAPictureWithoutACaptureTimeHasNoCaptureTimeKey(
+    ) async throws {
+        try await withLibraryFolder { folder in
+            let original = try wallpaperOfEveryKindOfPicture()
+            try await add(original, to: folder.library())
+
+            let document = try folder.storedDocument(of: original)
+
+            #expect(document["formatVersion"] as? Int == 2)
+            let pictures = try #require(document["pictures"] as? [String: [String: String]])
+            #expect(pictures["dawn"]?["captureTime"] == "2026-06-21T05:30:00")
+            #expect(pictures["dawn"]?["origin"] == "imported")
+            #expect(pictures["night"]?["origin"] == "madeWithAI")
+            let middayPicture = try #require(pictures["midday"])
+            #expect(middayPicture["captureTime"] == nil)
+            #expect(Set(middayPicture.keys) == ["id", "origin", "fingerprint"])
+        }
+    }
+
+    @Test(arguments: DocumentDamage.allCases)
+    func aStoredDocumentWithAnOutdatedVersionOrAPictureThatCannotBeTrustedMakesTheLibraryUnreadable(
+        damage: DocumentDamage,
+    ) async throws {
+        try await withLibraryFolder { folder in
+            let stored = try wallpaperOfEveryKindOfPicture()
+            try await add(stored, to: folder.library())
+            try folder.replaceStoredDocument(of: stored) { document in
+                guard var pictures = document["pictures"] as? [String: [String: String]] else { return }
+
+                switch damage {
+                case .formatVersionOne: document["formatVersion"] = 1
+                case .unknownOrigin: pictures["dawn"]?["origin"] = "drawn"
+                case .captureTimeThatIsNoDate: pictures["dawn"]?["captureTime"] = "2026-02-30T10:00:00"
+                case .emptyFingerprint: pictures["dawn"]?["fingerprint"] = ""
+                }
+                document["pictures"] = pictures
+            }
+
+            await #expect(throws: WallpaperLibraryError.unreadable) {
+                try await folder.library().wallpapers()
+            }
+            await #expect(throws: WallpaperLibraryError.unreadable) {
+                try await folder.library().wallpaper(stored.id)
+            }
+        }
+    }
+
+    @Test func theStoredDocumentUsesTheFixedSlotWords() async throws {
         try await withLibraryFolder { folder in
             let original = try wallpaper(filling: Slot.allCases)
             try await add(original, to: folder.library())
 
             let document = try folder.storedDocument(of: original)
 
-            #expect(document["formatVersion"] as? Int == 1)
-            let pictures = try #require(document["pictures"] as? [String: String])
+            let pictures = try #require(document["pictures"] as? [String: [String: String]])
             #expect(Set(pictures.keys) == [
                 "dawn",
                 "sunrise",
@@ -289,7 +387,7 @@ struct FileWallpaperLibraryTests {
                 "dusk",
                 "night",
             ])
-            #expect(pictures["midday"] == original.picture(in: .midday)?.id.value.uuidString)
+            #expect(pictures["midday"]?["id"] == original.picture(in: .midday)?.id.value.uuidString)
         }
     }
 
@@ -565,12 +663,12 @@ struct FileWallpaperLibraryTests {
         }
     }
 
-    @Test func aWallpaperDocumentOfFormatVersionTwoMakesTheLibraryUnreadable() async throws {
+    @Test func aWallpaperDocumentOfANewerFormatVersionMakesTheLibraryUnreadable() async throws {
         try await withLibraryFolder { folder in
             let tooNew = try wallpaper()
             try await add(tooNew, to: folder.library())
             try folder.replaceStoredDocument(of: tooNew) { document in
-                document["formatVersion"] = 2
+                document["formatVersion"] = 3
             }
 
             await #expect(throws: WallpaperLibraryError.unreadable) {
@@ -586,12 +684,13 @@ struct FileWallpaperLibraryTests {
         try await withLibraryFolder { folder in
             let stored = try wallpaper(filling: [.dawn, .night])
             try await add(stored, to: folder.library())
-            let pictureID = try #require(stored.picture(in: .dawn)).id.value.uuidString
+            let storedPictures = try #require(folder.storedDocument(of: stored)["pictures"] as? [String: Any])
+            let dawnEntry = try #require(storedPictures["dawn"])
             try folder.replaceStoredDocument(of: stored) { document in
                 switch refused {
                 case .nameThatIsNotAllowed: document["name"] = "   "
                 case .noPictures: document["pictures"] = [String: String]()
-                case .onePictureInTwoSlots: document["pictures"] = ["dawn": pictureID, "night": pictureID]
+                case .onePictureInTwoSlots: document["pictures"] = ["dawn": dawnEntry, "night": dawnEntry]
                 }
             }
 
