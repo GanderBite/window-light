@@ -1,19 +1,43 @@
 import Domain
+import Foundation
 import Presentation
 import SwiftUI
 
 public struct LibraryScreen: View {
     private let model: LibraryModel
     private let createWallpaper: (() -> Void)?
+    private let createWallpaperFromFiles: (([URL]) -> Void)?
     @State private var hasAskedToOpen = false
 
-    public init(model: LibraryModel, createWallpaper: (() -> Void)? = nil) {
+    public init(
+        model: LibraryModel,
+        createWallpaper: (() -> Void)? = nil,
+        createWallpaperFromFiles: (([URL]) -> Void)? = nil,
+    ) {
         self.model = model
         self.createWallpaper = createWallpaper
+        self.createWallpaperFromFiles = createWallpaperFromFiles
     }
 
     public var body: some View {
         content
+            .dropDestination(for: URL.self, isEnabled: createWallpaperFromFiles != nil) { files, _ in
+                reportDroppedFiles(files)
+            }
+            .toolbar {
+                if let createWallpaper, model.phase == .open {
+                    ToolbarItem {
+                        Button(action: createWallpaper) {
+                            Label {
+                                Text(verbatim: LibraryText.createWallpaper.inTheAppLanguage)
+                            } icon: {
+                                Image(systemName: "plus")
+                            }
+                        }
+                        .keyboardShortcut("n", modifiers: .command)
+                    }
+                }
+            }
             .onAppear(perform: openOnFirstAppearance)
             .confirmationDialog(
                 Text(verbatim: deleteQuestion),
@@ -202,6 +226,12 @@ public struct LibraryScreen: View {
         case let .tooLong(limit): LibraryText.nameTooLong.inTheAppLanguage(filledWith: limit)
         case nil: nil
         }
+    }
+
+    private func reportDroppedFiles(_ files: [URL]) {
+        guard let createWallpaperFromFiles, !files.isEmpty else { return }
+
+        createWallpaperFromFiles(files)
     }
 
     private func openOnFirstAppearance() {

@@ -277,6 +277,72 @@ struct LibraryModelTests {
         #expect(!model.isEmpty)
     }
 
+    @Test func reloadingListsAWallpaperAddedMeanwhileAndStaysOpenThroughout() async throws {
+        let library = WallpaperLibraryStandIn()
+        let first = try await addWallpaper(named: "First", to: library)
+        let model = await openedLibraryModel(over: library)
+        let second = try await addWallpaper(named: "Second", to: library)
+        let phaseWhileReading = SeenWhileWaiting<LibraryModel.Phase>()
+        await library.beforeAnswering(.wallpapers) { @MainActor in
+            phaseWhileReading.value = model.phase
+        }
+        await model.reload()
+        #expect(phaseWhileReading.value == .open)
+        #expect(model.phase == .open)
+        #expect(Set(model.wallpapers.map(\.id)) == [first.id, second.id])
+    }
+
+    @Test func reloadingKeepsTheListOnScreenWhileTheLibraryIsRead() async throws {
+        let library = WallpaperLibraryStandIn()
+        let first = try await addWallpaper(named: "First", to: library)
+        let model = await openedLibraryModel(over: library)
+        let listedWhileReading = SeenWhileWaiting<[WallpaperID]>()
+        await library.beforeAnswering(.wallpapers) { @MainActor in
+            listedWhileReading.value = model.wallpapers.map(\.id)
+        }
+        await model.reload()
+        #expect(listedWhileReading.value == [first.id])
+    }
+
+    @Test func reloadingKeepsTheOpenWallpaperWhenItIsStillInTheLibrary() async throws {
+        let library = WallpaperLibraryStandIn()
+        let first = try await addWallpaper(named: "First", to: library)
+        let second = try await addWallpaper(named: "Second", to: library)
+        try await library.rememberAsLastWorkedOn(second.id)
+        let model = await openedLibraryModel(over: library)
+        await model.select(first.id)
+        try await library.rememberAsLastWorkedOn(second.id)
+        await model.reload()
+        #expect(model.openWallpaperID == first.id)
+    }
+
+    @Test func reloadingAfterTheOpenWallpaperWasRemovedNoLongerListsOrOpensIt() async throws {
+        let library = WallpaperLibraryStandIn()
+        try await addWallpaper(named: "First", to: library)
+        let removed = try await addWallpaper(named: "Removed", to: library)
+        try await library.rememberAsLastWorkedOn(removed.id)
+        let model = await openedLibraryModel(over: library)
+        try #require(model.openWallpaperID == removed.id)
+        try await library.remove(removed.id)
+        await model.reload()
+        #expect(!model.wallpapers.map(\.id).contains(removed.id))
+        #expect(model.openWallpaperID != removed.id)
+        #expect(model.openWallpaperID == nil)
+    }
+
+    @Test(arguments: [WallpaperLibraryError.unreadable, .unavailable])
+    func reloadingALibraryThatCannotBeReadSetsThePhaseAsOpeningDoes(
+        failure: WallpaperLibraryError,
+    ) async throws {
+        let library = WallpaperLibraryStandIn()
+        try await addWallpaper(named: "First", to: library)
+        let model = await openedLibraryModel(over: library)
+        await library.fail(.wallpapers, with: failure)
+        await model.reload()
+        #expect(model.phase == (failure == .unreadable ? .unreadable : .unavailable))
+        #expect(model.wallpapers.isEmpty)
+    }
+
     @Test func selectingAWallpaperOpensItAndTheLibraryRemembersIt() async throws {
         let library = WallpaperLibraryStandIn()
         try await addWallpaper(named: "First", to: library)

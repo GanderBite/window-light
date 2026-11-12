@@ -40,21 +40,11 @@ public final class LibraryModel {
 
     public func open() async {
         phase = .opening
-        do throws(OpenLibraryError) {
-            let contents = try await openLibrary.execute()
-            let previews = await LibraryWallpaper.decodedPreviews(of: contents.wallpapers)
-            wallpapers = zip(contents.wallpapers, previews).map { entry, entryPreviews in
-                LibraryWallpaper(showing: entry.wallpaper, withPreviews: entryPreviews)
-            }
-            openWallpaperID = contents.wallpaperLastWorkedOn
-            phase = .open
-        } catch {
-            wallpapers = []
-            switch error {
-            case .unreadable: phase = .unreadable
-            case .unavailable: phase = .unavailable
-            }
-        }
+        await readLibrary(keepingTheOpenWallpaper: false)
+    }
+
+    public func reload() async {
+        await readLibrary(keepingTheOpenWallpaper: true)
     }
 
     public func select(_ wallpaper: WallpaperID) async {
@@ -138,6 +128,30 @@ public final class LibraryModel {
 
     public func dismissProblem() {
         problem = nil
+    }
+
+    private func readLibrary(keepingTheOpenWallpaper: Bool) async {
+        do throws(OpenLibraryError) {
+            let contents = try await openLibrary.execute()
+            let previews = await LibraryWallpaper.decodedPreviews(of: contents.wallpapers)
+            wallpapers = zip(contents.wallpapers, previews).map { entry, entryPreviews in
+                LibraryWallpaper(showing: entry.wallpaper, withPreviews: entryPreviews)
+            }
+            if !(keepingTheOpenWallpaper && isListed(openWallpaperID)) {
+                openWallpaperID = contents.wallpaperLastWorkedOn
+            }
+            phase = .open
+        } catch {
+            wallpapers = []
+            switch error {
+            case .unreadable: phase = .unreadable
+            case .unavailable: phase = .unavailable
+            }
+        }
+    }
+
+    private func isListed(_ wallpaper: WallpaperID?) -> Bool {
+        wallpapers.contains { $0.id == wallpaper }
     }
 
     private func endRenaming() {
