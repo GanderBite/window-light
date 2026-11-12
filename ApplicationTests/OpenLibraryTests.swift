@@ -13,7 +13,15 @@ private func addWallpaper(
     previewTextsBySlot: [Slot: String],
     to library: WallpaperLibraryStandIn,
 ) async throws -> Wallpaper {
-    let picturesBySlot = previewTextsBySlot.mapValues { _ in Picture(id: PictureID(UUID())) }
+    var picturesBySlot: [Slot: Picture] = [:]
+    for slot in previewTextsBySlot.keys {
+        picturesBySlot[slot] = try Picture(
+            id: PictureID(UUID()),
+            origin: .imported,
+            captureTime: nil,
+            fingerprint: ContentFingerprint(UUID().uuidString),
+        )
+    }
     let wallpaper = try Wallpaper(id: WallpaperID(UUID()), name: WallpaperName(text), pictures: picturesBySlot)
     var contents: [PictureID: Data] = [:]
     var previews: [PictureID: Data] = [:]

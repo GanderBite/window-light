@@ -4,8 +4,19 @@ import Foundation
 import Testing
 
 private func addWallpaper(to library: WallpaperLibraryStandIn, stem: String = "Wallpaper") async throws -> Wallpaper {
-    try await CreateWallpaper(library: library, previews: PicturePreviewsStandIn())
-        .execute(pictureContentsBySlot: [.dawn: Data("dawn \(stem)".utf8)], defaultNameStem: stem)
+    let picture = try Picture(
+        id: PictureID(UUID()),
+        origin: .imported,
+        captureTime: nil,
+        fingerprint: ContentFingerprint("fingerprint dawn \(stem)"),
+    )
+    let wallpaper = try Wallpaper(id: WallpaperID(UUID()), name: WallpaperName("\(stem) 1"), pictures: [.dawn: picture])
+    try await library.add(
+        wallpaper,
+        pictureContents: [picture.id: Data("dawn \(stem)".utf8)],
+        picturePreviews: [picture.id: Data("preview dawn \(stem)".utf8)],
+    )
+    return wallpaper
 }
 
 private func storedName(of wallpaper: Wallpaper, in library: WallpaperLibraryStandIn) async -> String? {

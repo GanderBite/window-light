@@ -48,7 +48,15 @@ private func addWallpaper(
     filling slots: [Slot],
     to library: WallpaperLibraryStandIn,
 ) async throws -> Wallpaper {
-    let picturesBySlot = Dictionary(uniqueKeysWithValues: slots.map { ($0, Picture(id: PictureID(UUID()))) })
+    var picturesBySlot: [Slot: Domain.Picture] = [:]
+    for slot in slots {
+        picturesBySlot[slot] = try Domain.Picture(
+            id: PictureID(UUID()),
+            origin: .imported,
+            captureTime: nil,
+            fingerprint: ContentFingerprint(UUID().uuidString),
+        )
+    }
     let wallpaper = try Wallpaper(id: WallpaperID(UUID()), name: WallpaperName(text), pictures: picturesBySlot)
     var contents: [PictureID: Data] = [:]
     var previews: [PictureID: Data] = [:]
