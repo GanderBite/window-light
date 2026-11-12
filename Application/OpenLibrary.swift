@@ -13,28 +13,13 @@ public struct OpenLibrary: Sendable {
             var wallpapersInLibrary: [WallpaperInLibrary] = []
             for wallpaper in try await library.wallpapers() {
                 let previews = try await library.picturePreviews(of: wallpaper.id)
-                try wallpapersInLibrary.append(Self.entry(for: wallpaper, withPreviews: previews))
+                try wallpapersInLibrary.append(WallpaperInLibrary(wallpaper: wallpaper, previewsByPicture: previews))
             }
             let wallpaperLastWorkedOn = try await library.wallpaperLastWorkedOn()
             return LibraryContents(wallpapers: wallpapersInLibrary, wallpaperLastWorkedOn: wallpaperLastWorkedOn)
         } catch {
             throw Self.openLibraryError(for: error)
         }
-    }
-
-    private static func entry(
-        for wallpaper: Wallpaper,
-        withPreviews previewsByPicture: [PictureID: Data],
-    ) throws(WallpaperLibraryError) -> WallpaperInLibrary {
-        var previewsInDayOrder: [Data] = []
-        for picture in wallpaper.picturesInDayOrder {
-            guard let preview = previewsByPicture[picture.id] else {
-                throw .unexpected(description: "The wallpaper library has no preview of a picture of a wallpaper.")
-            }
-
-            previewsInDayOrder.append(preview)
-        }
-        return WallpaperInLibrary(wallpaper: wallpaper, picturePreviewsInDayOrder: previewsInDayOrder)
     }
 
     private static func openLibraryError(for libraryError: WallpaperLibraryError) -> OpenLibraryError {
@@ -57,6 +42,27 @@ public struct WallpaperInLibrary: Identifiable, Sendable {
 
     public var id: WallpaperID {
         wallpaper.id
+    }
+
+    init(wallpaper: Wallpaper, previewsByPicture: [PictureID: Data]) throws(WallpaperLibraryError) {
+        var previewsInDayOrder: [Data] = []
+        for picture in wallpaper.picturesInDayOrder {
+            guard let preview = previewsByPicture[picture.id] else {
+                throw .unexpected(description: "The wallpaper library has no preview of a picture of a wallpaper.")
+            }
+
+            previewsInDayOrder.append(preview)
+        }
+        self.wallpaper = wallpaper
+        picturePreviewsInDayOrder = previewsInDayOrder
+    }
+
+    public func picturePreview(in slot: Slot) -> Data? {
+        guard let picture = wallpaper.picture(in: slot),
+              let index = wallpaper.picturesInDayOrder.firstIndex(where: { $0.id == picture.id })
+        else { return nil }
+
+        return picturePreviewsInDayOrder[index]
     }
 }
 

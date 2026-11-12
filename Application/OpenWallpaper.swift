@@ -8,11 +8,13 @@ public struct OpenWallpaper: Sendable {
         self.library = library
     }
 
-    public func execute(_ wallpaper: WallpaperID) async throws(OpenWallpaperError) -> Wallpaper {
+    public func execute(_ wallpaper: WallpaperID) async throws(OpenWallpaperError) -> WallpaperInLibrary {
         do throws(WallpaperLibraryError) {
             let opened = try await library.wallpaper(wallpaper)
+            let previews = try await library.picturePreviews(of: wallpaper)
+            let entry = try WallpaperInLibrary(wallpaper: opened, previewsByPicture: previews)
             try await library.rememberAsLastWorkedOn(wallpaper)
-            return opened
+            return entry
         } catch {
             throw Self.openWallpaperError(for: error)
         }
