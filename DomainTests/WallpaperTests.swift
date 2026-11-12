@@ -56,6 +56,15 @@ struct WallpaperTests {
         }
     }
 
+    @Test func twoPicturesWithTheSameFingerprintAreRefused() throws {
+        let fingerprint = try ContentFingerprint("same content")
+        let first = Picture(id: PictureID(UUID()), origin: .imported, captureTime: nil, fingerprint: fingerprint)
+        let second = Picture(id: PictureID(UUID()), origin: .imported, captureTime: nil, fingerprint: fingerprint)
+        #expect(throws: WallpaperError.identicalPictureAlreadyInWallpaper(fingerprint)) {
+            try wallpaper(pictures: [.dawn: first, .dusk: second])
+        }
+    }
+
     @Test func renamingChangesTheNameAndNothingElse() throws {
         let dawn = try picture()
         var wallpaper = try wallpaper(named: "Holiday", pictures: [.dawn: dawn])
