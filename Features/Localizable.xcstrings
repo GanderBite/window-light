@@ -139,6 +139,74 @@
         }
       }
     },
+    "Add Pictures…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add Pictures…"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dodaj zdjęcia…"
+          }
+        }
+      }
+    },
+    "Add a Picture…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a Picture…"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dodaj zdjęcie…"
+          }
+        }
+      }
+    },
+    "Add a picture to %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a picture to %@"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dodaj zdjęcie do pory dnia: %@"
+          }
+        }
+      }
+    },
+    "Afternoon" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afternoon"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Popołudnie"
+          }
+        }
+      }
+    },
     "Cancel" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -152,6 +220,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Anuluj"
+          }
+        }
+      }
+    },
+    "Choose a wallpaper to see its pictures." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a wallpaper to see its pictures."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wybierz tapetę, aby zobaczyć jej zdjęcia."
           }
         }
       }
@@ -203,6 +288,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Utwórz tapetę…"
+          }
+        }
+      }
+    },
+    "Dawn" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dawn"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Świt"
           }
         }
       }
@@ -259,6 +361,40 @@
         }
       }
     },
+    "Dusk" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dusk"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zmierzch"
+          }
+        }
+      }
+    },
+    "Empty" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Puste"
+          }
+        }
+      }
+    },
     "Every time of day in this wallpaper already has a picture." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -306,6 +442,91 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Jej zdjęcia zostaną usunięte z Window Light i nie będzie można ich przywrócić. Pliki, z których je zaimportowano, pozostaną na swoim miejscu."
+          }
+        }
+      }
+    },
+    "Made with AI" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Made with AI"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utworzone przez AI"
+          }
+        }
+      }
+    },
+    "Midday" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Midday"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Południe"
+          }
+        }
+      }
+    },
+    "Morning" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Morning"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Poranek"
+          }
+        }
+      }
+    },
+    "Night" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Night"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noc"
+          }
+        }
+      }
+    },
+    "No Wallpaper Selected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Wallpaper Selected"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie wybrano tapety"
           }
         }
       }
@@ -414,6 +635,23 @@
         }
       }
     },
+    "Opening the wallpaper" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opening the wallpaper"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otwieranie tapety"
+          }
+        }
+      }
+    },
     "Opening your wallpapers" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -461,6 +699,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Coś w danych Window Light jest uszkodzone. Spróbuj ponownie."
+          }
+        }
+      }
+    },
+    "Sunrise" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sunrise"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wschód słońca"
+          }
+        }
+      }
+    },
+    "Sunset" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sunset"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zachód słońca"
           }
         }
       }
@@ -529,6 +801,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tej tapety nie ma już w bibliotece."
+          }
+        }
+      }
+    },
+    "This wallpaper isn't available right now" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This wallpaper isn't available right now"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ta tapeta nie jest teraz dostępna"
           }
         }
       }
@@ -648,6 +937,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Na Macu zabrakło miejsca, więc import został przerwany. Dodane już zdjęcia zostały zachowane."
+          }
+        }
+      }
+    },
+    "Your picture" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your picture"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Twoje zdjęcie"
           }
         }
       }
