@@ -1,0 +1,416 @@
+import Application
+import Domain
+@testable import Features
+import Foundation
+import Testing
+
+private func file(_ name: String) -> URL {
+    URL(fileURLWithPath: "/Users/someone/Pictures/\(name)")
+}
+
+private func files(_ count: Int, startingAt first: Int = 1) -> [URL] {
+    (first ..< first + count).map { file("\($0).jpg") }
+}
+
+private func readablePicture(_ name: String) throws -> PictureFile {
+    try PictureFile(
+        content: Data("content of \(name)".utf8),
+        fingerprint: ContentFingerprint("fingerprint of \(name)"),
+        captureTime: nil,
+        pixelSize: PixelSize(width: PixelSize.sharpDesktopWidth, height: PixelSize.sharpDesktopHeight),
+    )
+}
+
+private func answersReading(
+    _ readableFiles: [URL],
+    failing failingFiles: [URL: PictureFileError] = [:],
+) throws -> [URL: Result<PictureFile, PictureFileError>] {
+    var answers: [URL: Result<PictureFile, PictureFileError>] = [:]
+    for readableFile in readableFiles {
+        answers[readableFile] = try .success(readablePicture(readableFile.lastPathComponent))
+    }
+    for (failingFile, failure) in failingFiles {
+        answers[failingFile] = .failure(failure)
+    }
+    return answers
+}
+
+@discardableResult
+private func addWallpaper(filling slots: [Slot], to library: WallpaperLibraryStandIn) async throws -> Wallpaper {
+    var picturesBySlot: [Slot: Domain.Picture] = [:]
+    for slot in slots {
+        picturesBySlot[slot] = try Domain.Picture(
+            id: PictureID(UUID()),
+            origin: .imported,
+            captureTime: nil,
+            fingerprint: ContentFingerprint("stored picture in \(slot)"),
+        )
+    }
+    let wallpaper = try Wallpaper(id: WallpaperID(UUID()), name: WallpaperName("Stored"), pictures: picturesBySlot)
+    var contents: [PictureID: Data] = [:]
+    for picture in picturesBySlot.values {
+        contents[picture.id] = Data("content of \(picture.fingerprint)".utf8)
+    }
+    try await library.add(wallpaper, pictureContents: contents, picturePreviews: contents)
+    return wallpaper
+}
+
+@MainActor
+private final class ChangedWallpapers {
+    weak var reportingModel: PictureImportModel?
+    private(set) var reported: [WallpaperID] = []
+    private(set) var outcomesSeenWhenReported: [PictureImportModel.Outcome?] = []
+
+    func record(_ wallpaper: WallpaperID) {
+        reported.append(wallpaper)
+        outcomesSeenWhenReported.append(reportingModel?.outcome)
+    }
+}
+
+@MainActor
+private final class SeenWhileImporting {
+    var isImporting: Bool?
+    var hasStartedASecondImport = false
+}
+
+@MainActor
+private final class ImportScene {
+    let library: WallpaperLibraryStandIn
+    let pictureFiles: PictureFilesStandIn
+    let changedWallpapers: ChangedWallpapers
+    let model: PictureImportModel
+
+    init(
+        answering answers: [URL: Result<PictureFile, PictureFileError>] = [:],
+        library: WallpaperLibraryStandIn = WallpaperLibraryStandIn(),
+        defaultWallpaperNameStem: String = "Wallpaper",
+    ) {
+        self.library = library
+        let pictureFiles = PictureFilesStandIn(answering: answers)
+        self.pictureFiles = pictureFiles
+        let previews = PicturePreviewsStandIn()
+        let changedWallpapers = ChangedWallpapers()
+        self.changedWallpapers = changedWallpapers
+        model = PictureImportModel(
+            createWallpaper: CreateWallpaper(library: library, previews: previews, files: pictureFiles),
+            addPictures: AddPictures(library: library, previews: previews, files: pictureFiles),
+            addPictureToSlot: AddPictureToSlot(library: library, previews: previews, files: pictureFiles),
+            defaultWallpaperNameStem: defaultWallpaperNameStem,
+            wallpaperChanged: { wallpaper in changedWallpapers.record(wallpaper) },
+        )
+        changedWallpapers.reportingModel = model
+    }
+}
+
+@MainActor
+struct PictureImportModelTests {
+    @Test func backingOutOfChoosingFilesCreatesNothing() async {
+        let scene = ImportScene()
+        scene.model.chooseFiles(for: .newWallpaper)
+        #expect(scene.model.destinationAwaitingFiles == .newWallpaper)
+        scene.model.cancelChoosingFiles()
+        #expect(scene.model.destinationAwaitingFiles == nil)
+        #expect(await scene.library.storedWallpapers.isEmpty)
+        #expect(scene.model.outcome == nil)
+        #expect(scene.model.refusal == nil)
+        #expect(!scene.model.isImporting)
+    }
+
+    @Test func importingTwoGoodChosenFilesCreatesAWallpaperAndReportsItChangedBeforeTheOutcome() async throws {
+        let chosen = files(2)
+        let scene = try ImportScene(answering: answersReading(chosen))
+        scene.model.chooseFiles(for: .newWallpaper)
+        await scene.model.importChosenFiles(chosen)
+        let outcome = try #require(scene.model.outcome)
+        #expect(outcome.summary.addedPictureCount == 2)
+        #expect(!outcome.wallpaperNeedsMorePictures)
+        #expect(scene.model.destinationAwaitingFiles == nil)
+        #expect(scene.model.refusal == nil)
+        let stored = await scene.library.storedWallpapers
+        #expect(stored.count == 1)
+        #expect(scene.changedWallpapers.reported == stored.map(\.id))
+        #expect(scene.changedWallpapers.outcomesSeenWhenReported == [nil])
+    }
+
+    @Test func importingNineFilesToANewWallpaperIsRefusedAsTooMany() async throws {
+        let chosen = files(9)
+        let scene = try ImportScene(answering: answersReading(chosen))
+        await scene.model.importFiles(chosen, to: .newWallpaper)
+        #expect(scene.model.refusal == .tooManyFiles(most: 8))
+        #expect(scene.model.outcome == nil)
+        #expect(await scene.library.storedWallpapers.isEmpty)
+        #expect(scene.changedWallpapers.reported.isEmpty)
+    }
+
+    @Test func importingOneFileToANewWallpaperIsRefusedAsTooFew() async throws {
+        let chosen = files(1)
+        let scene = try ImportScene(answering: answersReading(chosen))
+        await scene.model.importFiles(chosen, to: .newWallpaper)
+        #expect(scene.model.refusal == .tooFewFiles(fewest: 2))
+        #expect(scene.model.outcome == nil)
+        #expect(await scene.library.storedWallpapers.isEmpty)
+        #expect(scene.changedWallpapers.reported.isEmpty)
+    }
+
+    @Test func aDamagedFileIsNamedInTheOutcomeAndTheWallpaperNeedsMorePictures() async throws {
+        let good = file("good.jpg")
+        let damaged = file("damaged.jpg")
+        let scene = try ImportScene(answering: answersReading([good], failing: [damaged: .damaged]))
+        await scene.model.importFiles([good, damaged], to: .newWallpaper)
+        let outcome = try #require(scene.model.outcome)
+        #expect(outcome.summary.addedPictureCount == 1)
+        #expect(outcome.summary.skippedFiles.map(\.name) == ["damaged.jpg"])
+        #expect(outcome.summary.skippedFiles.map(\.reason) == [.damaged])
+        #expect(outcome.wallpaperNeedsMorePictures)
+        #expect(await scene.changedWallpapers.reported == (scene.library.storedWallpapers).map(\.id))
+    }
+
+    @Test func twoUnusableFilesGiveAnOutcomeWithNothingAddedAndNoChangedWallpaper() async throws {
+        let notAPicture = file("notes.txt")
+        let damaged = file("damaged.jpg")
+        let scene = try ImportScene(answering: answersReading(
+            [],
+            failing: [notAPicture: .notAPicture, damaged: .damaged],
+        ))
+        await scene.model.importFiles([notAPicture, damaged], to: .newWallpaper)
+        let outcome = try #require(scene.model.outcome)
+        #expect(outcome.summary.addedPictureCount == 0)
+        #expect(!outcome.wallpaperNeedsMorePictures)
+        #expect(scene.changedWallpapers.reported.isEmpty)
+        #expect(await scene.library.storedWallpapers.isEmpty)
+    }
+
+    @Test func importingThreeFilesToAWallpaperWithThreeEmptySlotsAddsThree() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(
+            filling: [.dawn, .sunrise, .morning, .midday, .afternoon],
+            to: library,
+        )
+        let chosen = files(3)
+        let scene = try ImportScene(answering: answersReading(chosen), library: library)
+        await scene.model.importFiles(chosen, to: .wallpaper(wallpaper.id))
+        let outcome = try #require(scene.model.outcome)
+        #expect(outcome.summary.addedPictureCount == 3)
+        #expect(!outcome.wallpaperNeedsMorePictures)
+        #expect(scene.changedWallpapers.reported == [wallpaper.id])
+        #expect(await library.storedWallpaper(wallpaper.id)?.filledSlotCount == 8)
+    }
+
+    @Test func importingFourFilesToAWallpaperWithThreeEmptySlotsIsRefused() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(
+            filling: [.dawn, .sunrise, .morning, .midday, .afternoon],
+            to: library,
+        )
+        let chosen = files(4)
+        let scene = try ImportScene(answering: answersReading(chosen), library: library)
+        await scene.model.importFiles(chosen, to: .wallpaper(wallpaper.id))
+        #expect(scene.model.refusal == .moreFilesThanEmptySlots(emptySlots: 3))
+        #expect(scene.model.outcome == nil)
+        #expect(scene.changedWallpapers.reported.isEmpty)
+    }
+
+    @Test func importingToAWallpaperWithNoEmptySlotIsRefused() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(filling: Slot.allCases, to: library)
+        let chosen = files(1)
+        let scene = try ImportScene(answering: answersReading(chosen), library: library)
+        await scene.model.importFiles(chosen, to: .wallpaper(wallpaper.id))
+        #expect(scene.model.refusal == .noEmptySlot)
+        #expect(scene.model.outcome == nil)
+    }
+
+    @Test func importingOneFileToAnEmptySlotAddsIt() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(filling: [.dawn], to: library)
+        let chosen = files(1)
+        let scene = try ImportScene(answering: answersReading(chosen), library: library)
+        await scene.model.importFiles(chosen, to: .slot(.dusk, of: wallpaper.id))
+        let outcome = try #require(scene.model.outcome)
+        #expect(outcome.summary.addedPictureCount == 1)
+        #expect(!outcome.wallpaperNeedsMorePictures)
+        #expect(scene.changedWallpapers.reported == [wallpaper.id])
+        #expect(await library.storedWallpaper(wallpaper.id)?.picture(in: .dusk) != nil)
+    }
+
+    @Test(arguments: [false, true])
+    func anUnusableFileAddsNothingToAnUnfinishedWallpaperAndReportsNoChange(intoASlot: Bool) async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(filling: [.dawn], to: library)
+        #expect(!wallpaper.isReadyToApply)
+        let damaged = file("damaged.jpg")
+        let scene = try ImportScene(answering: answersReading([], failing: [damaged: .damaged]), library: library)
+        let destination: PictureImportModel.Destination =
+            intoASlot ? .slot(.dusk, of: wallpaper.id) : .wallpaper(wallpaper.id)
+        await scene.model.importFiles([damaged], to: destination)
+        let outcome = try #require(scene.model.outcome)
+        #expect(outcome.summary.addedPictureCount == 0)
+        #expect(outcome.summary.skippedFiles.map(\.name) == ["damaged.jpg"])
+        #expect(!outcome.wallpaperNeedsMorePictures)
+        #expect(scene.changedWallpapers.reported.isEmpty)
+        #expect(scene.model.refusal == nil)
+        #expect(await library.storedWallpaper(wallpaper.id)?.filledSlotCount == 1)
+    }
+
+    @Test func importingAFileToASlotWithARealPictureIsRefused() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(filling: [.dawn], to: library)
+        let chosen = files(1)
+        let scene = try ImportScene(answering: answersReading(chosen), library: library)
+        await scene.model.importFiles(chosen, to: .slot(.dawn, of: wallpaper.id))
+        #expect(scene.model.refusal == .slotHoldsRealPicture(.dawn))
+        #expect(scene.model.outcome == nil)
+    }
+
+    @Test func importingTwoFilesToOneSlotIsRefusedWithoutCallingAJob() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(filling: [.dawn], to: library)
+        let chosen = files(2)
+        let scene = try ImportScene(answering: answersReading(chosen), library: library)
+        await scene.model.importFiles(chosen, to: .slot(.dusk, of: wallpaper.id))
+        #expect(scene.model.refusal == .oneFileForASlot)
+        #expect(scene.model.outcome == nil)
+        #expect(await !library.hasReceived(.wallpaper))
+        #expect(await scene.pictureFiles.askedFiles.isEmpty)
+    }
+
+    @Test(arguments: [false, true])
+    func importingToAWallpaperThatIsGoneIsRefused(intoASlot: Bool) async throws {
+        let chosen = files(1)
+        let scene = try ImportScene(answering: answersReading(chosen))
+        let goneWallpaper = WallpaperID(UUID())
+        let destination: PictureImportModel.Destination =
+            intoASlot ? .slot(.dusk, of: goneWallpaper) : .wallpaper(goneWallpaper)
+        await scene.model.importFiles(chosen, to: destination)
+        #expect(scene.model.refusal == .wallpaperGone)
+        #expect(scene.model.outcome == nil)
+    }
+
+    @Test func aLibraryThatFailsWhileCreatingMeansTheFilesCouldNotBeImported() async throws {
+        let chosen = files(2)
+        let scene = try ImportScene(answering: answersReading(chosen))
+        await scene.library.failEveryCall(with: .unavailable)
+        await scene.model.importFiles(chosen, to: .newWallpaper)
+        #expect(scene.model.refusal == .couldNotImport)
+        #expect(scene.model.outcome == nil)
+        #expect(scene.changedWallpapers.reported.isEmpty)
+    }
+
+    @Test(arguments: [false, true])
+    func aLibraryThatFailsWhileAddingMeansTheFilesCouldNotBeImported(intoASlot: Bool) async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(filling: [.dawn], to: library)
+        let chosen = files(1)
+        let scene = try ImportScene(answering: answersReading(chosen), library: library)
+        await library.fail(.keepAdding, with: .unavailable)
+        let destination: PictureImportModel.Destination =
+            intoASlot ? .slot(.dusk, of: wallpaper.id) : .wallpaper(wallpaper.id)
+        await scene.model.importFiles(chosen, to: destination)
+        #expect(scene.model.refusal == .couldNotImport)
+        #expect(scene.model.outcome == nil)
+    }
+
+    @Test func aDefaultNameThatIsTooLongMeansTheFilesCouldNotBeImported() async throws {
+        let chosen = files(2)
+        let scene = try ImportScene(
+            answering: answersReading(chosen),
+            defaultWallpaperNameStem: String(repeating: "a", count: 60),
+        )
+        await scene.model.importFiles(chosen, to: .newWallpaper)
+        #expect(scene.model.refusal == .couldNotImport)
+        #expect(scene.model.outcome == nil)
+    }
+
+    @Test func theModelIsImportingWhileAJobRunsAndNotAfterItReturned() async throws {
+        let chosen = files(2)
+        let scene = try ImportScene(answering: answersReading(chosen))
+        let seen = SeenWhileImporting()
+        let model = scene.model
+        await scene.library.beforeAnswering(.wallpapers) { @MainActor in
+            seen.isImporting = model.isImporting
+        }
+        await model.importFiles(chosen, to: .newWallpaper)
+        #expect(seen.isImporting == true)
+        #expect(!model.isImporting)
+        #expect(model.outcome != nil)
+    }
+
+    @Test func theModelIsImportingWhileAJobRunsAndNotAfterItThrew() async throws {
+        let chosen = files(1)
+        let scene = try ImportScene(answering: answersReading(chosen))
+        let seen = SeenWhileImporting()
+        let model = scene.model
+        await scene.library.beforeAnswering(.wallpaper) { @MainActor in
+            seen.isImporting = model.isImporting
+        }
+        await model.importFiles(chosen, to: .wallpaper(WallpaperID(UUID())))
+        #expect(seen.isImporting == true)
+        #expect(!model.isImporting)
+        #expect(model.refusal == .wallpaperGone)
+    }
+
+    @Test func aSecondImportStartedWhileOneRunsChangesNothing() async throws {
+        let chosen = files(2)
+        let alsoChosen = files(3, startingAt: 3)
+        let scene = try ImportScene(answering: answersReading(chosen + alsoChosen))
+        let seen = SeenWhileImporting()
+        let model = scene.model
+        model.chooseFiles(for: .newWallpaper)
+        await scene.library.beforeAnswering(.wallpapers) { @MainActor in
+            guard !seen.hasStartedASecondImport else { return }
+
+            seen.hasStartedASecondImport = true
+            await model.importFiles(alsoChosen, to: .newWallpaper)
+            await model.importChosenFiles(alsoChosen)
+        }
+        await model.importChosenFiles(chosen)
+        #expect(seen.hasStartedASecondImport)
+        #expect(model.outcome?.summary.addedPictureCount == 2)
+        #expect(await scene.library.storedWallpapers.count == 1)
+        #expect(await scene.pictureFiles.askedFiles.count == 2)
+        #expect(scene.changedWallpapers.reported.count == 1)
+    }
+
+    @Test func importingChosenFilesWithoutADestinationDoesNothing() async throws {
+        let chosen = files(2)
+        let scene = try ImportScene(answering: answersReading(chosen))
+        await scene.model.importChosenFiles(chosen)
+        #expect(scene.model.outcome == nil)
+        #expect(scene.model.refusal == nil)
+        #expect(await !scene.library.hasReceived(.wallpapers))
+    }
+
+    @Test func importingNoFilesDoesNothing() async {
+        let scene = ImportScene()
+        scene.model.chooseFiles(for: .newWallpaper)
+        await scene.model.importChosenFiles([])
+        await scene.model.importFiles([], to: .newWallpaper)
+        #expect(scene.model.destinationAwaitingFiles == .newWallpaper)
+        #expect(scene.model.outcome == nil)
+        #expect(scene.model.refusal == nil)
+        #expect(await !scene.library.hasReceived(.wallpapers))
+    }
+
+    @Test func anOutcomeClearsAnEarlierRefusal() async throws {
+        let chosen = files(2)
+        let scene = try ImportScene(answering: answersReading(chosen))
+        await scene.model.importFiles([chosen[0]], to: .newWallpaper)
+        #expect(scene.model.refusal != nil)
+        await scene.model.importFiles(chosen, to: .newWallpaper)
+        #expect(scene.model.refusal == nil)
+        #expect(scene.model.outcome != nil)
+    }
+
+    @Test func dismissingClearsTheOutcomeAndTheRefusal() async throws {
+        let chosen = files(2)
+        let scene = try ImportScene(answering: answersReading(chosen))
+        await scene.model.importFiles(chosen, to: .newWallpaper)
+        #expect(scene.model.outcome != nil)
+        scene.model.dismissOutcome()
+        #expect(scene.model.outcome == nil)
+        await scene.model.importFiles([chosen[0]], to: .newWallpaper)
+        #expect(scene.model.refusal != nil)
+        scene.model.dismissRefusal()
+        #expect(scene.model.refusal == nil)
+    }
+}
