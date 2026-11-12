@@ -42,7 +42,12 @@ public actor FileWallpaperLibrary: WallpaperLibrary {
         pictureContents: [PictureID: Data],
         picturePreviews: [PictureID: Data],
     ) async throws(WallpaperLibraryError) {
-        let pictureFiles = try Self.pictureFiles(of: wallpaper, contents: pictureContents, previews: picturePreviews)
+        let pictureFiles = try Self.pictureFiles(
+            of: wallpaper.picturesInDayOrder.map(\.id),
+            inWallpaper: wallpaper.id,
+            contents: pictureContents,
+            previews: picturePreviews,
+        )
         let layout = try layout()
         let document = try WallpaperDocument(of: wallpaper, at: nextPosition(in: layout))
         let folderBeingAdded = layout.folderBeingAdded(for: wallpaper.id)
@@ -63,6 +68,38 @@ public actor FileWallpaperLibrary: WallpaperLibrary {
         let stored = try storedWallpaper(wallpaper.id, in: layout)
         let document = WallpaperDocument(of: wallpaper, at: stored.position)
         try Self.write(document, to: layout.documentFile(ofWallpaper: wallpaper.id), atomically: true)
+    }
+
+    public func keep(
+        _ wallpaper: Wallpaper,
+        addingPictureContents: [PictureID: Data],
+        addingPicturePreviews: [PictureID: Data],
+    ) async throws(WallpaperLibraryError) {
+        let layout = try layout()
+        let stored = try storedWallpaper(wallpaper.id, in: layout)
+        let addedPictures = Self.pictures(of: wallpaper, notHeldBy: stored.wallpaper)
+        let gonePictures = Self.pictures(of: stored.wallpaper, notHeldBy: wallpaper)
+        try Self.checkOnlyTheAddedPicturesAreGiven(
+            addedPictures,
+            to: wallpaper.id,
+            contents: addingPictureContents,
+            previews: addingPicturePreviews,
+        )
+        let addedPictureFiles = try Self.pictureFiles(
+            of: addedPictures,
+            inWallpaper: wallpaper.id,
+            contents: addingPictureContents,
+            previews: addingPicturePreviews,
+        )
+        let document = WallpaperDocument(of: wallpaper, at: stored.position)
+        do {
+            try Self.write(addedPictureFiles, intoWallpaper: wallpaper.id, in: layout)
+            try Self.write(document, to: layout.documentFile(ofWallpaper: wallpaper.id), atomically: true)
+        } catch {
+            Self.discardFilesLeavingAnyThatResist(of: addedPictures, inWallpaper: wallpaper.id, in: layout)
+            throw error
+        }
+        Self.discardFilesLeavingAnyThatResist(of: gonePictures, inWallpaper: wallpaper.id, in: layout)
     }
 
     public func remove(_ wallpaper: WallpaperID) async throws(WallpaperLibraryError) {
@@ -217,25 +254,6 @@ public actor FileWallpaperLibrary: WallpaperLibrary {
         return WallpaperID(id)
     }
 
-    private static func pictureFiles(
-        of wallpaper: Wallpaper,
-        contents: [PictureID: Data],
-        previews: [PictureID: Data],
-    ) throws(WallpaperLibraryError) -> [PictureFiles] {
-        var pictureFiles: [PictureFiles] = []
-        for picture in wallpaper.picturesInDayOrder {
-            guard let content = contents[picture.id], let preview = previews[picture.id] else {
-                throw .unexpected(
-                    description: "The picture \(picture.id.value.uuidString) of the wallpaper "
-                        + "\(wallpaper.id.value.uuidString) was given without its content or its preview",
-                )
-            }
-
-            pictureFiles.append(PictureFiles(picture: picture.id, content: content, preview: preview))
-        }
-        return pictureFiles
-    }
-
     private static func build(
         _ folderBeingAdded: URL,
         holding document: WallpaperDocument,
@@ -262,6 +280,74 @@ public actor FileWallpaperLibrary: WallpaperLibrary {
     ) throws(WallpaperLibraryError) {
         let content = try document.encoded()
         try translatingFailures { try content.write(to: documentFile, options: atomically ? .atomic : []) }
+    }
+}
+
+private extension FileWallpaperLibrary {
+    static func pictureFiles(
+        of pictures: [PictureID],
+        inWallpaper wallpaper: WallpaperID,
+        contents: [PictureID: Data],
+        previews: [PictureID: Data],
+    ) throws(WallpaperLibraryError) -> [PictureFiles] {
+        var pictureFiles: [PictureFiles] = []
+        for picture in pictures {
+            guard let content = contents[picture], let preview = previews[picture] else {
+                throw .unexpected(
+                    description: "The picture \(picture.value.uuidString) of the wallpaper "
+                        + "\(wallpaper.value.uuidString) was given without its content or its preview",
+                )
+            }
+
+            pictureFiles.append(PictureFiles(picture: picture, content: content, preview: preview))
+        }
+        return pictureFiles
+    }
+
+    static func pictures(of wallpaper: Wallpaper, notHeldBy other: Wallpaper) -> [PictureID] {
+        let heldByOther = Set(other.picturesInDayOrder.map(\.id))
+        return wallpaper.picturesInDayOrder.map(\.id).filter { !heldByOther.contains($0) }
+    }
+
+    static func checkOnlyTheAddedPicturesAreGiven(
+        _ addedPictures: [PictureID],
+        to wallpaper: WallpaperID,
+        contents: [PictureID: Data],
+        previews: [PictureID: Data],
+    ) throws(WallpaperLibraryError) {
+        let added = Set(addedPictures)
+        let given = Set(contents.keys).union(previews.keys)
+        guard given.isSubset(of: added) else {
+            let notAdded = given.subtracting(added).map(\.value.uuidString).sorted()
+            throw .unexpected(
+                description: "The pictures \(notAdded.joined(separator: ", ")) were given as added to the wallpaper "
+                    + "\(wallpaper.value.uuidString), which does not hold them as new pictures",
+            )
+        }
+    }
+
+    static func write(
+        _ pictureFiles: [PictureFiles],
+        intoWallpaper wallpaper: WallpaperID,
+        in layout: LibraryLayout,
+    ) throws(WallpaperLibraryError) {
+        try translatingFailures {
+            for pictureFile in pictureFiles {
+                try pictureFile.content.write(to: layout.contentFile(of: pictureFile.picture, inWallpaper: wallpaper))
+                try pictureFile.preview.write(to: layout.previewFile(of: pictureFile.picture, inWallpaper: wallpaper))
+            }
+        }
+    }
+
+    static func discardFilesLeavingAnyThatResist(
+        of pictures: [PictureID],
+        inWallpaper wallpaper: WallpaperID,
+        in layout: LibraryLayout,
+    ) {
+        for picture in pictures {
+            try? FileManager.default.removeItem(at: layout.contentFile(of: picture, inWallpaper: wallpaper))
+            try? FileManager.default.removeItem(at: layout.previewFile(of: picture, inWallpaper: wallpaper))
+        }
     }
 }
 

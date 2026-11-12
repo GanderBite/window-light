@@ -40,6 +40,10 @@ struct LibraryLayout {
         wallpaperFolder.appending(path: "Previews", directoryHint: .isDirectory)
     }
 
+    func contentFile(of picture: PictureID, inWallpaper wallpaper: WallpaperID) -> URL {
+        file(of: picture, in: picturesFolder(in: wallpaperFolder(of: wallpaper)))
+    }
+
     func previewFile(of picture: PictureID, inWallpaper wallpaper: WallpaperID) -> URL {
         file(of: picture, in: previewsFolder(in: wallpaperFolder(of: wallpaper)))
     }

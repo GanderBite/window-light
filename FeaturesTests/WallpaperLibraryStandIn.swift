@@ -9,13 +9,22 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
         case picturePreviews(WallpaperID)
         case add(WallpaperID)
         case keep(WallpaperID)
+        case keepAdding(WallpaperID)
         case remove(WallpaperID)
         case wallpaperLastWorkedOn
         case rememberAsLastWorkedOn(WallpaperID)
     }
 
     enum CallKind: Hashable {
-        case wallpapers, wallpaper, picturePreviews, add, keep, remove, wallpaperLastWorkedOn, rememberAsLastWorkedOn
+        case wallpapers
+        case wallpaper
+        case picturePreviews
+        case add
+        case keep
+        case keepAdding
+        case remove
+        case wallpaperLastWorkedOn
+        case rememberAsLastWorkedOn
     }
 
     private(set) var storedWallpapers: [Wallpaper] = []
@@ -50,6 +59,7 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
             .picturePreviews,
             .add,
             .keep,
+            .keepAdding,
             .remove,
             .wallpaperLastWorkedOn,
             .rememberAsLastWorkedOn,
@@ -113,6 +123,17 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
         storedWallpapers[index] = wallpaper
     }
 
+    func keep(
+        _ wallpaper: Wallpaper,
+        addingPictureContents _: [PictureID: Data],
+        addingPicturePreviews _: [PictureID: Data],
+    ) async throws(WallpaperLibraryError) {
+        try await receive(.keepAdding(wallpaper.id))
+        guard let index = storedWallpapers.firstIndex(where: { $0.id == wallpaper.id }) else { throw .notFound }
+
+        storedWallpapers[index] = wallpaper
+    }
+
     func remove(_ wallpaper: WallpaperID) async throws(WallpaperLibraryError) {
         try await receive(.remove(wallpaper))
         guard let index = storedWallpapers.firstIndex(where: { $0.id == wallpaper }) else { return }
@@ -157,6 +178,7 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
         case .picturePreviews: .picturePreviews
         case .add: .add
         case .keep: .keep
+        case .keepAdding: .keepAdding
         case .remove: .remove
         case .wallpaperLastWorkedOn: .wallpaperLastWorkedOn
         case .rememberAsLastWorkedOn: .rememberAsLastWorkedOn
