@@ -9,13 +9,22 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
         case picturePreviews(WallpaperID)
         case add(WallpaperID)
         case keep(WallpaperID)
+        case keepAdding(WallpaperID)
         case remove(WallpaperID)
         case wallpaperLastWorkedOn
         case rememberAsLastWorkedOn(WallpaperID)
     }
 
     enum CallKind: Hashable {
-        case wallpapers, wallpaper, picturePreviews, add, keep, remove, wallpaperLastWorkedOn, rememberAsLastWorkedOn
+        case wallpapers
+        case wallpaper
+        case picturePreviews
+        case add
+        case keep
+        case keepAdding
+        case remove
+        case wallpaperLastWorkedOn
+        case rememberAsLastWorkedOn
     }
 
     private(set) var storedWallpapers: [Wallpaper] = []
@@ -51,6 +60,7 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
             .picturePreviews,
             .add,
             .keep,
+            .keepAdding,
             .remove,
             .wallpaperLastWorkedOn,
             .rememberAsLastWorkedOn,
@@ -104,6 +114,24 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
         try receive(.keep(wallpaper.id), of: .keep)
         guard let index = storedWallpapers.firstIndex(where: { $0.id == wallpaper.id }) else { throw .notFound }
 
+        storedWallpapers[index] = wallpaper
+    }
+
+    func keep(
+        _ wallpaper: Wallpaper,
+        addingPictureContents: [PictureID: Data],
+        addingPicturePreviews: [PictureID: Data],
+    ) async throws(WallpaperLibraryError) {
+        try receive(.keepAdding(wallpaper.id), of: .keepAdding)
+        guard let index = storedWallpapers.firstIndex(where: { $0.id == wallpaper.id }) else { throw .notFound }
+
+        let keptPictureIDs = Set(wallpaper.picturesInDayOrder.map(\.id))
+        for gonePicture in storedWallpapers[index].picturesInDayOrder where !keptPictureIDs.contains(gonePicture.id) {
+            storedPictureContents[gonePicture.id] = nil
+            storedPicturePreviews[gonePicture.id] = nil
+        }
+        storedPictureContents.merge(addingPictureContents) { _, added in added }
+        storedPicturePreviews.merge(addingPicturePreviews) { _, added in added }
         storedWallpapers[index] = wallpaper
     }
 

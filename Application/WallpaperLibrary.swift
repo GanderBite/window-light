@@ -11,6 +11,11 @@ public protocol WallpaperLibrary: Sendable {
         picturePreviews: [PictureID: Data],
     ) async throws(WallpaperLibraryError)
     func keep(_ wallpaper: Wallpaper) async throws(WallpaperLibraryError)
+    func keep(
+        _ wallpaper: Wallpaper,
+        addingPictureContents: [PictureID: Data],
+        addingPicturePreviews: [PictureID: Data],
+    ) async throws(WallpaperLibraryError)
     func remove(_ wallpaper: WallpaperID) async throws(WallpaperLibraryError)
     func wallpaperLastWorkedOn() async throws(WallpaperLibraryError) -> WallpaperID?
     func rememberAsLastWorkedOn(_ wallpaper: WallpaperID) async throws(WallpaperLibraryError)

@@ -48,6 +48,10 @@ private struct LibraryFolder {
         url.appending(path: "LastWorkedOn")
     }
 
+    func storedPreviewFile(of picture: Picture, in wallpaper: Wallpaper) -> URL {
+        wallpaperFolder(of: wallpaper).appending(path: "Previews/\(picture.id.value.uuidString)")
+    }
+
     func storedDocument(of wallpaper: Wallpaper) throws -> [String: Any] {
         let content = try Data(contentsOf: documentFile(of: wallpaper))
         return try #require(try JSONSerialization.jsonObject(with: content) as? [String: Any])
@@ -185,6 +189,51 @@ enum MissingPart: CaseIterable {
     case preview
 }
 
+enum MismatchedAddition: CaseIterable {
+    case contentOfAPictureNotInTheWallpaper
+    case addedPictureWithoutPreview
+    case addedPictureWithoutContent
+    case newPictureNotGiven
+    case pictureAlreadyStoredGivenAgain
+}
+
+enum UnwritablePart: CaseIterable {
+    case wallpaperFolder
+    case previewsFolder
+}
+
+private func withPicture(
+    _ added: Picture,
+    in slot: Slot,
+    of wallpaper: Wallpaper,
+) throws -> Wallpaper {
+    var changed = wallpaper
+    try changed.place(added, in: slot)
+    return changed
+}
+
+private func content(of picture: Picture) -> Data {
+    Data("content of added picture \(picture.id.value.uuidString)".utf8)
+}
+
+private func preview(of picture: Picture) -> Data {
+    Data("preview of added picture \(picture.id.value.uuidString)".utf8) + Data(repeating: 0x33, count: 500)
+}
+
+private func filesOfEverythingInside(_ folder: LibraryFolder) throws -> [String: Data] {
+    let enumerator = FileManager.default.enumerator(
+        at: folder.url,
+        includingPropertiesForKeys: [.isRegularFileKey],
+    )
+    var files: [String: Data] = [:]
+    for case let item as URL in enumerator?.allObjects ?? []
+        where try item.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile == true
+    {
+        files[item.path] = try Data(contentsOf: item)
+    }
+    return files
+}
+
 struct FileWallpaperLibraryTests {
     @Test func aLibraryInANewEmptyFolderHasNoWallpapersAndNoWallpaperLastWorkedOn() async throws {
         try await withLibraryFolder { (folder: LibraryFolder) async throws in
@@ -299,6 +348,200 @@ struct FileWallpaperLibraryTests {
             try await folder.library().keep(renamed(original, to: "After"))
 
             #expect(try await folder.library().wallpaper(original.id).name.text == "After")
+        }
+    }
+
+    @Test func aPictureAddedToAStoredWallpaperComesBackInItsSlotWithItsPreviewAfterARestart() async throws {
+        try await withLibraryFolder { folder in
+            let stored = try wallpaper(filling: [.dawn, .night])
+            try await add(stored, to: folder.library())
+            let added = try picture(origin: .imported, captureTime: nil)
+            let changed = try withPicture(added, in: .midday, of: stored)
+
+            try await folder.library().keep(
+                changed,
+                addingPictureContents: [added.id: content(of: added)],
+                addingPicturePreviews: [added.id: preview(of: added)],
+            )
+
+            let restarted = folder.library()
+            let restored = try await restarted.wallpaper(stored.id)
+            #expect(restored == changed)
+            #expect(restored.picture(in: .dawn) == stored.picture(in: .dawn))
+            #expect(restored.picture(in: .midday) == added)
+            #expect(restored.picture(in: .night) == stored.picture(in: .night))
+            let restoredPreviews = try await restarted.picturePreviews(of: stored.id)
+            #expect(restoredPreviews.count == 3)
+            #expect(restoredPreviews[added.id] == preview(of: added))
+        }
+    }
+
+    @Test func theStoredContentOfAnAddedPictureIsExactlyTheGivenBytes() async throws {
+        try await withLibraryFolder { folder in
+            let stored = try wallpaper(filling: [.dawn, .night])
+            try await add(stored, to: folder.library())
+            let added = try picture(origin: .imported, captureTime: nil)
+            let changed = try withPicture(added, in: .sunset, of: stored)
+
+            try await folder.library().keep(
+                changed,
+                addingPictureContents: [added.id: content(of: added)],
+                addingPicturePreviews: [added.id: preview(of: added)],
+            )
+
+            #expect(try Data(contentsOf: folder.storedContentFile(of: added, in: changed)) == content(of: added))
+        }
+    }
+
+    @Test func thePictureFilesOfAReplacedPictureAreGoneAfterKeepingItsReplacement() async throws {
+        try await withLibraryFolder { folder in
+            let replaced = try picture(origin: .madeWithAI, captureTime: nil)
+            let stored = try Wallpaper(
+                id: WallpaperID(UUID()),
+                name: WallpaperName("Lisbon"),
+                pictures: [.dawn: replaced, .night: picture(origin: .imported, captureTime: nil)],
+            )
+            try await add(stored, to: folder.library())
+            let replacement = try picture(origin: .imported, captureTime: nil)
+            let changed = try withPicture(replacement, in: .dawn, of: stored)
+
+            try await folder.library().keep(
+                changed,
+                addingPictureContents: [replacement.id: content(of: replacement)],
+                addingPicturePreviews: [replacement.id: preview(of: replacement)],
+            )
+
+            #expect(!FileManager.default.fileExists(atPath: folder.storedContentFile(of: replaced, in: stored).path))
+            #expect(!FileManager.default.fileExists(atPath: folder.storedPreviewFile(of: replaced, in: stored).path))
+            #expect(try await folder.library().wallpaper(stored.id) == changed)
+            #expect(try await folder.library().picturePreviews(of: stored.id).count == 2)
+        }
+    }
+
+    @Test func keepingWithAddedPicturesAWallpaperNotInTheLibraryThrowsNotFoundAndStoresNothing() async throws {
+        try await withLibraryFolder { folder in
+            let library = folder.library()
+            let stored = try wallpaper()
+            try await add(stored, to: library)
+            let stranger = try wallpaper(named: "Stranger")
+            let filesBefore = try filesOfEverythingInside(folder)
+
+            await #expect(throws: WallpaperLibraryError.notFound) {
+                try await library.keep(
+                    stranger,
+                    addingPictureContents: contents(of: stranger),
+                    addingPicturePreviews: previews(of: stranger),
+                )
+            }
+            #expect(try filesOfEverythingInside(folder) == filesBefore)
+        }
+    }
+
+    @Test(arguments: MismatchedAddition.allCases)
+    func keepingWithAddedPicturesThatDoNotMatchTheWallpaperThrowsUnexpectedAndChangesNoFile(
+        mismatch: MismatchedAddition,
+    ) async throws {
+        try await withLibraryFolder { folder in
+            let library = folder.library()
+            let stored = try wallpaper(filling: [.dawn, .night])
+            try await add(stored, to: library)
+            let added = try picture(origin: .imported, captureTime: nil)
+            let stranger = try picture(origin: .imported, captureTime: nil)
+            let alreadyStored = try #require(stored.picture(in: .dawn))
+            let changed = try withPicture(added, in: .midday, of: stored)
+            var givenContents = [added.id: content(of: added)]
+            var givenPreviews = [added.id: preview(of: added)]
+            switch mismatch {
+            case .contentOfAPictureNotInTheWallpaper:
+                givenContents[stranger.id] = content(of: stranger)
+                givenPreviews[stranger.id] = preview(of: stranger)
+            case .addedPictureWithoutPreview: givenPreviews[added.id] = nil
+            case .addedPictureWithoutContent: givenContents[added.id] = nil
+            case .newPictureNotGiven:
+                givenContents[added.id] = nil
+                givenPreviews[added.id] = nil
+            case .pictureAlreadyStoredGivenAgain:
+                givenContents[alreadyStored.id] = content(of: alreadyStored)
+                givenPreviews[alreadyStored.id] = preview(of: alreadyStored)
+            }
+            let filesBefore = try filesOfEverythingInside(folder)
+
+            await #expect {
+                try await library.keep(
+                    changed,
+                    addingPictureContents: givenContents,
+                    addingPicturePreviews: givenPreviews,
+                )
+            } throws: { error in
+                guard case .unexpected = error as? WallpaperLibraryError else { return false }
+
+                return true
+            }
+            #expect(try filesOfEverythingInside(folder) == filesBefore)
+        }
+    }
+
+    @Test(arguments: UnwritablePart.allCases)
+    func addingAPictureToAWallpaperWhoseFolderCannotBeWrittenLeavesTheStoredWallpaperAsItWas(
+        unwritable: UnwritablePart,
+    ) async throws {
+        try await withLibraryFolder { folder in
+            let library = folder.library()
+            let stored = try wallpaper(filling: [.dawn, .night])
+            try await add(stored, to: library)
+            let added = try picture(origin: .imported, captureTime: nil)
+            let changed = try withPicture(added, in: .midday, of: stored)
+            let documentBefore = try Data(contentsOf: folder.documentFile(of: stored))
+            let unwritableFolder =
+                switch unwritable {
+                case .wallpaperFolder: folder.wallpaperFolder(of: stored)
+                case .previewsFolder: folder.wallpaperFolder(of: stored).appending(path: "Previews")
+                }
+
+            try FileManager.default.setAttributes(
+                [.posixPermissions: readOnlyPermissions],
+                ofItemAtPath: unwritableFolder.path,
+            )
+            await #expect(throws: WallpaperLibraryError.notPermitted) {
+                try await library.keep(
+                    changed,
+                    addingPictureContents: [added.id: content(of: added)],
+                    addingPicturePreviews: [added.id: preview(of: added)],
+                )
+            }
+            try FileManager.default.setAttributes(
+                [.posixPermissions: writablePermissions],
+                ofItemAtPath: unwritableFolder.path,
+            )
+
+            #expect(try Data(contentsOf: folder.documentFile(of: stored)) == documentBefore)
+            #expect(!folder.pathsOfEverythingInside().contains { $0.contains(added.id.value.uuidString) })
+            #expect(try await folder.library().wallpaper(stored.id) == stored)
+            #expect(try await folder.library().picturePreviews(of: stored.id) == previews(of: stored))
+        }
+    }
+
+    @Test func aWallpaperKeepsItsPlaceInTheLibraryAndTheLastWorkedOnStaysAfterAPictureIsAdded() async throws {
+        try await withLibraryFolder { folder in
+            let library = folder.library()
+            let first = try wallpaper(named: "Zurich", filling: [.dawn, .night])
+            let second = try wallpaper(named: "Athens")
+            let third = try wallpaper(named: "Madrid")
+            for stored in [first, second, third] {
+                try await add(stored, to: library)
+            }
+            try await library.rememberAsLastWorkedOn(third.id)
+            let added = try picture(origin: .imported, captureTime: nil)
+            let changedFirst = try withPicture(added, in: .midday, of: first)
+
+            try await library.keep(
+                changedFirst,
+                addingPictureContents: [added.id: content(of: added)],
+                addingPicturePreviews: [added.id: preview(of: added)],
+            )
+
+            #expect(try await folder.library().wallpapers() == [changedFirst, second, third])
+            #expect(try await folder.library().wallpaperLastWorkedOn() == third.id)
         }
     }
 
