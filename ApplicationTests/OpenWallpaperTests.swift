@@ -26,7 +26,7 @@ struct OpenWallpaperTests {
 
         let opened = try await OpenWallpaper(library: library).execute(wallpaper.id)
 
-        #expect(opened == wallpaper)
+        #expect(opened.wallpaper == wallpaper)
         #expect(await library.lastWorkedOn == wallpaper.id)
     }
 
@@ -73,5 +73,55 @@ struct OpenWallpaperTests {
         await #expect(throws: OpenWallpaperError.unavailable(description: "disk vanished")) {
             try await OpenWallpaper(library: library).execute(wallpaper.id)
         }
+    }
+
+    @Test func openingAWallpaperWithPicturesInDawnAndDuskGivesTheirPreviewsAndNoneForTheEmptySlots() async throws {
+        let library = WallpaperLibraryStandIn()
+        let dawn = try Domain.Picture(
+            id: PictureID(UUID()), origin: .imported, captureTime: nil, fingerprint: ContentFingerprint("dawn"),
+        )
+        let dusk = try Domain.Picture(
+            id: PictureID(UUID()), origin: .imported, captureTime: nil, fingerprint: ContentFingerprint("dusk"),
+        )
+        let wallpaper = try Wallpaper(
+            id: WallpaperID(UUID()),
+            name: WallpaperName("Sea"),
+            pictures: [.dawn: dawn, .dusk: dusk],
+        )
+        try await library.add(
+            wallpaper,
+            pictureContents: [dawn.id: Data("c1".utf8), dusk.id: Data("c2".utf8)],
+            picturePreviews: [dawn.id: Data("preview dawn".utf8), dusk.id: Data("preview dusk".utf8)],
+        )
+
+        let opened = try await OpenWallpaper(library: library).execute(wallpaper.id)
+
+        #expect(opened.wallpaper == wallpaper)
+        #expect(opened.picturePreview(in: .dawn) == Data("preview dawn".utf8))
+        #expect(opened.picturePreview(in: .dusk) == Data("preview dusk".utf8))
+        #expect(opened.picturePreviewsInDayOrder == [Data("preview dawn".utf8), Data("preview dusk".utf8)])
+        for slot in Slot.allCases where slot != .dawn && slot != .dusk {
+            #expect(opened.picturePreview(in: slot) == nil)
+        }
+    }
+
+    @Test func aPictureWithoutAPreviewFailsOpeningAsUnavailableAndRemembersNothing() async throws {
+        let library = WallpaperLibraryStandIn()
+        var wallpaper = try await addWallpaper(to: library)
+        let unpreviewed = try Domain.Picture(
+            id: PictureID(UUID()), origin: .imported, captureTime: nil, fingerprint: ContentFingerprint("no preview"),
+        )
+        _ = try wallpaper.place(unpreviewed, in: .dusk)
+        try await library.keep(wallpaper)
+
+        let thrown = await #expect(throws: OpenWallpaperError.self) {
+            try await OpenWallpaper(library: library).execute(wallpaper.id)
+        }
+        guard case .unavailable = thrown else {
+            Issue.record("Expected unavailable, got \(String(describing: thrown))")
+            return
+        }
+
+        #expect(await library.lastWorkedOn == nil)
     }
 }
