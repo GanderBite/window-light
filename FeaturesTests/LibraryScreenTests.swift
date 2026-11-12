@@ -176,4 +176,45 @@ struct LibraryScreenTests {
         #expect(model.isEmpty)
         #expect(withCreating.height > withoutCreating.height)
     }
+
+    @Test(arguments: [false, true], [false, true])
+    func rendersEmptyAndFilledLibrariesWithEachCombinationOfTheTwoClosures(
+        givenCreate: Bool,
+        givenFiles: Bool,
+    ) async throws {
+        try await renderEmptyLibrary(givenCreate: givenCreate, givenFiles: givenFiles)
+        let library = WallpaperLibraryStandIn()
+        try await addWallpaper(named: "Summer", filling: [.dawn, .midday], to: library)
+        let model = libraryModel(over: library)
+        await model.open()
+        try #require(!model.isEmpty)
+        let size = try renderedSize(
+            of: screen(over: model, givenCreate: givenCreate, givenFiles: givenFiles),
+            width: 500,
+            height: 400,
+        )
+        #expect(size.width > 0)
+        #expect(size.height > 0)
+    }
+
+    private func screen(over model: LibraryModel, givenCreate: Bool, givenFiles: Bool) -> LibraryScreen {
+        LibraryScreen(
+            model: model,
+            createWallpaper: givenCreate ? {} : nil,
+            createWallpaperFromFiles: givenFiles ? { _ in } : nil,
+        )
+    }
+
+    private func renderEmptyLibrary(givenCreate: Bool, givenFiles: Bool) async throws {
+        let model = libraryModel(over: WallpaperLibraryStandIn())
+        await model.open()
+        try #require(model.isEmpty)
+        let size = try renderedSize(
+            of: screen(over: model, givenCreate: givenCreate, givenFiles: givenFiles),
+            width: 500,
+            height: nil,
+        )
+        #expect(size.width > 0)
+        #expect(size.height > 0)
+    }
 }
