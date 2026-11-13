@@ -95,7 +95,7 @@ public struct WallpaperScreen: View {
         let add = addAction(for: state)
         return SlotRow(
             slotName: slotName,
-            thumbnail: state.preview.map { SlotRow.Thumbnail.picture($0) } ?? .empty,
+            thumbnail: thumbnail(of: state),
             caption: caption,
             addTitle: WallpaperText.addPicture.inTheAppLanguage,
             add: add,
@@ -116,8 +116,22 @@ public struct WallpaperScreen: View {
         }
     }
 
+    private func thumbnail(of state: WallpaperModel.SlotState) -> SlotRow.Thumbnail {
+        if let preview = state.preview {
+            .picture(preview)
+        } else if !state.isFilled, let borrowedPreview = state.standIn?.preview {
+            .borrowedPicture(borrowedPreview)
+        } else {
+            .empty
+        }
+    }
+
     private func caption(of state: WallpaperModel.SlotState) -> String {
-        if !state.isFilled {
+        if !state.isFilled, let standIn = state.standIn {
+            WallpaperText.emptySlotBorrowing.inTheAppLanguage(
+                filledWith: WallpaperText.name(of: standIn.slot).inTheAppLanguage,
+            )
+        } else if !state.isFilled {
             WallpaperText.emptySlot.inTheAppLanguage
         } else if state.holdsAPictureThatCanBeReplaced {
             WallpaperText.madeWithAI.inTheAppLanguage

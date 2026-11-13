@@ -10,11 +10,17 @@ import Observation
 public final class WallpaperModel {
     public enum Phase: Equatable { case nothingOpen, opening, open, gone, unavailable }
 
+    public struct StandIn: Equatable {
+        public let slot: Slot
+        public let preview: CGImage?
+    }
+
     public struct SlotState: Identifiable, Equatable {
         public let slot: Slot
         public let preview: CGImage?
         public let isFilled: Bool
         public let canTakeAFile: Bool
+        public let standIn: StandIn?
 
         public var id: Slot {
             slot
@@ -79,12 +85,17 @@ public final class WallpaperModel {
 
     private func hold(_ wallpaper: Wallpaper, withPreviews previews: [CGImage?]) {
         name = wallpaper.name.text
-        slots = zip(Slot.allCases, previews).map { slot, preview in
+        let decodedPreviewsBySlot = Dictionary(uniqueKeysWithValues: zip(Slot.allCases, previews))
+            .compactMapValues { $0 }
+        slots = Slot.allCases.map { slot in
             SlotState(
                 slot: slot,
-                preview: preview,
+                preview: decodedPreviewsBySlot[slot],
                 isFilled: wallpaper.picture(in: slot) != nil,
                 canTakeAFile: wallpaper.canTakeAFile(into: slot),
+                standIn: wallpaper.standIn(for: slot).map { lent in
+                    StandIn(slot: lent.slot, preview: decodedPreviewsBySlot[lent.slot])
+                },
             )
         }
         hasEmptySlot = !wallpaper.emptySlots.isEmpty

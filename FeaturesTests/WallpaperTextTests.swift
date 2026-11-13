@@ -58,6 +58,22 @@ struct WallpaperTextTests {
         )
     }
 
+    @Test func anEmptySlotThatBorrowsAPictureNamesTheLendingSlotInEnglish() throws {
+        let english = try languageBundle("en")
+        #expect(
+            WallpaperText.emptySlotBorrowing.text(from: english, filledWith: "Dusk")
+                == "Empty, borrows the picture from Dusk",
+        )
+    }
+
+    @Test func anEmptySlotThatBorrowsAPictureNamesTheLendingSlotInPolish() throws {
+        let polish = try languageBundle("pl")
+        #expect(
+            WallpaperText.emptySlotBorrowing.text(from: polish, filledWith: "Zmierzch")
+                == "Puste, pożycza zdjęcie z pory dnia: Zmierzch",
+        )
+    }
+
     @Test func theTextsSharedWithTheLibraryKeepTheirPolishValues() throws {
         let polish = try languageBundle("pl")
         #expect(WallpaperText.goneTitle.text(from: polish) == LibraryText.wallpaperGone.text(from: polish))

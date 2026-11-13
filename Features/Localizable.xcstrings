@@ -395,6 +395,23 @@
         }
       }
     },
+    "Empty, borrows the picture from %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empty, borrows the picture from %@"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Puste, pożycza zdjęcie z pory dnia: %@"
+          }
+        }
+      }
+    },
     "Every time of day in this wallpaper already has a picture." : {
       "extractionState" : "manual",
       "localizations" : {

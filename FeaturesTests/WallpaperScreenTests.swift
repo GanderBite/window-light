@@ -125,6 +125,22 @@ struct WallpaperScreenTests {
         #expect(size.height > 0)
     }
 
+    @Test func rendersAWallpaperWithTwoPicturesAndSixBorrowingSlots() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(
+            picturesBySlot: [.morning: picture(madeWith: .imported), .dusk: picture(madeWith: .imported)],
+            to: library,
+        )
+        let model = WallpaperModel(openWallpaper: OpenWallpaper(library: library))
+        await model.show(wallpaper.id)
+        try #require(model.phase == .open)
+        let borrowingSlots = model.slots.filter { !$0.isFilled && $0.standIn?.preview != nil }
+        try #require(borrowingSlots.count == 6)
+        let size = try renderedSize(of: screen(of: model), height: 600)
+        #expect(size.width > 0)
+        #expect(size.height > 0)
+    }
+
     @Test func rendersAWallpaperThatIsGone() async throws {
         let model = WallpaperModel(openWallpaper: OpenWallpaper(library: WallpaperLibraryStandIn()))
         await model.show(WallpaperID(UUID()))

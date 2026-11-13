@@ -11,6 +11,7 @@ enum WallpaperText: String, CaseIterable {
     case dusk = "Dusk"
     case night = "Night"
     case emptySlot = "Empty"
+    case emptySlotBorrowing = "Empty, borrows the picture from %@"
     case yourPicture = "Your picture"
     case madeWithAI = "Made with AI"
     case addPicture = "Add a Picture…"
