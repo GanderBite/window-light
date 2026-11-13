@@ -208,6 +208,26 @@ struct WallpaperScreenTests {
         #expect(size.height > 0)
     }
 
+    @Test func rendersAWallpaperWhoseRowsCanBeDragged() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(
+            picturesBySlot: [
+                .morning: picture(madeWith: .imported),
+                .sunset: picture(madeWith: .imported),
+                .dusk: picture(madeWith: .madeWithAI),
+            ],
+            to: library,
+        )
+        let model = wallpaperModel(over: library)
+        await model.show(wallpaper.id)
+        try #require(model.phase == .open)
+        let draggableSlots = model.slots.filter(\.canBeMoved).map(\.slot)
+        try #require(draggableSlots == [.morning, .sunset])
+        let size = try renderedSize(of: screen(of: model), height: 600)
+        #expect(size.width > 0)
+        #expect(size.height > 0)
+    }
+
     @Test func rendersAWallpaperThatIsGone() async throws {
         let model = wallpaperModel(over: WallpaperLibraryStandIn())
         await model.show(WallpaperID(UUID()))
