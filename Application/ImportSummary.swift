@@ -3,6 +3,7 @@ public struct ImportSummary: Equatable, Sendable {
     public let skippedFiles: [SkippedFile]
     public let filesThatMayLookBlurry: [String]
     public let stoppedForLackOfSpace: Bool
+    public let wasStopped: Bool
 }
 
 public struct SkippedFile: Equatable, Sendable {
@@ -15,6 +16,7 @@ public struct SkippedFile: Equatable, Sendable {
         case alreadyInWallpaper
         case sameAsAnotherChosenFile
         case noSpaceLeft
+        case importStopped
     }
 
     public let name: String

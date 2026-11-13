@@ -72,6 +72,22 @@ private func create(
     .execute(files: chosen.urls, defaultNameStem: stem)
 }
 
+private func create(
+    _ chosen: ChosenFiles,
+    in library: WallpaperLibraryStandIn,
+    readBy files: PictureFilesStandIn,
+    stoppedBeforeTheFirstFile: Bool = false,
+) async throws -> WallpaperCreation {
+    let createWallpaper = CreateWallpaper(library: library, previews: PicturePreviewsStandIn(), files: files)
+    let chosenURLs = chosen.urls
+    return try await Task {
+        if stoppedBeforeTheFirstFile {
+            withUnsafeCurrentTask { $0?.cancel() }
+        }
+        return try await createWallpaper.execute(files: chosenURLs, defaultNameStem: "Wallpaper")
+    }.value
+}
+
 private func names(_ count: Int) -> [String] {
     (1 ... count).map { "\($0).jpg" }
 }
@@ -420,5 +436,59 @@ struct CreateWallpaperTests {
         let library = WallpaperLibraryStandIn()
         _ = try await create(ChosenFiles(readable: names(2)), in: library)
         #expect(await library.lastWorkedOn == nil)
+    }
+
+    @Test func stoppingWhileTheSecondOfFourFilesIsReadCreatesAWallpaperWithTheFirstPicture() async throws {
+        let library = WallpaperLibraryStandIn()
+        var chosen = try ChosenFiles(readable: ["1.jpg"])
+        chosen.addFailing("2.jpg", with: .unexpected(description: "The read was interrupted."))
+        try chosen.addReadable("3.jpg")
+        try chosen.addReadable("4.jpg")
+        let files = PictureFilesStandIn(answering: chosen.answers, cancellingTheAskingTaskWhenAskedFor: file("2.jpg"))
+
+        let creation = try await create(chosen, in: library, readBy: files)
+
+        let wallpaper = try #require(creation.wallpaper)
+        #expect(wallpaper.filledSlotCount == 1)
+        #expect(try wallpaper.holdsPicture(identicalTo: fingerprint(of: "1.jpg")))
+        #expect(await library.storedWallpapers == [wallpaper])
+        #expect(creation.summary.addedPictureCount == 1)
+        #expect(creation.summary.wasStopped)
+        #expect(creation.summary.skippedFiles.map(\.name) == ["2.jpg", "3.jpg", "4.jpg"])
+        #expect(creation.summary.skippedFiles.map(\.reason) == [.importStopped, .importStopped, .importStopped])
+        #expect(await files.askedFiles == [file("1.jpg"), file("2.jpg")])
+    }
+
+    @Test func anImportStoppedBeforeTheFirstFileCreatesNoWallpaperAndWritesNothing() async throws {
+        let library = WallpaperLibraryStandIn()
+        let chosen = try ChosenFiles(readable: names(3))
+        let files = PictureFilesStandIn(answering: chosen.answers)
+
+        let creation = try await create(chosen, in: library, readBy: files, stoppedBeforeTheFirstFile: true)
+
+        #expect(creation.wallpaper == nil)
+        #expect(await library.receivedAnAdd == false)
+        #expect(await library.storedWallpapers.isEmpty)
+        #expect(creation.summary.addedPictureCount == 0)
+        #expect(creation.summary.wasStopped)
+        #expect(creation.summary.skippedFiles.map(\.name) == names(3))
+        #expect(creation.summary.skippedFiles.map(\.reason) == [.importStopped, .importStopped, .importStopped])
+        #expect(await files.askedFiles.isEmpty)
+    }
+
+    @Test func anImportThatIsNotStoppedSaysItWasNotStoppedAndNamesWhatItNamedBefore() async throws {
+        var chosen = try ChosenFiles(readable: names(2))
+        chosen.addFailing("broken.jpg", with: .damaged)
+        try chosen.addReadable("small.jpg", width: 800, height: 600)
+
+        let creation = try await create(chosen)
+
+        #expect(creation.wallpaper?.filledSlotCount == 3)
+        #expect(creation.summary.addedPictureCount == 3)
+        #expect(creation.summary.wasStopped == false)
+        #expect(creation.summary.stoppedForLackOfSpace == false)
+        #expect(creation.summary.skippedFiles.map(\.name) == ["broken.jpg"])
+        #expect(creation.summary.skippedFiles.map(\.reason) == [.damaged])
+        #expect(creation.summary.filesThatMayLookBlurry == ["small.jpg"])
     }
 }

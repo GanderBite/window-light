@@ -64,12 +64,16 @@ private func addWallpaperWithTwoPictures(to library: WallpaperLibraryStandIn) as
 private func importModel(
     over library: WallpaperLibraryStandIn,
     answering answers: [String: Result<PictureFile, PictureFileError>],
+    stoppingTheImportWhenAskedFor nameOfTheFileWhoseReadStopsTheImport: String? = nil,
 ) -> PictureImportModel {
     var answersByFile: [URL: Result<PictureFile, PictureFileError>] = [:]
     for (name, answer) in answers {
         answersByFile[file(name)] = answer
     }
-    let pictureFiles = PictureFilesStandIn(answering: answersByFile)
+    let pictureFiles = PictureFilesStandIn(
+        answering: answersByFile,
+        cancellingTheAskingTaskWhenAskedFor: nameOfTheFileWhoseReadStopsTheImport.map(file),
+    )
     let previews = PicturePreviewsStandIn()
     return PictureImportModel(
         createWallpaper: CreateWallpaper(library: library, previews: previews, files: pictureFiles),
@@ -86,6 +90,22 @@ private func outcomeOfCreatingAWallpaper(
 ) async throws -> PictureImportModel.Outcome {
     let model = importModel(over: WallpaperLibraryStandIn(), answering: answers)
     await model.importFiles(answers.keys.map(file), to: .newWallpaper)
+    return try #require(model.outcome)
+}
+
+@MainActor
+private func outcomeOfCreatingAWallpaperStoppedWhileReadingTheFourthOfFiveFiles() async throws
+    -> PictureImportModel.Outcome
+{
+    var answers = try sharpPictures(5)
+    answers["4.jpg"] = .failure(.unexpected(description: "The read was interrupted."))
+    let model = importModel(
+        over: WallpaperLibraryStandIn(),
+        answering: answers,
+        stoppingTheImportWhenAskedFor: "4.jpg",
+    )
+    let chosenFiles = answers.keys.map(file)
+    await Task { await model.importFiles(chosenFiles, to: .newWallpaper) }.value
     return try #require(model.outcome)
 }
 
@@ -276,5 +296,23 @@ struct PictureImportWordingTests {
         for refusal in everyRefusal() {
             #expect(refusal.message(from: english) != refusal.message(from: polish))
         }
+    }
+
+    @Test func aStoppedImportSaysSoFirstAndNamesEachFileItDidNotAddInEnglish() async throws {
+        let outcome = try await outcomeOfCreatingAWallpaperStoppedWhileReadingTheFourthOfFiveFiles()
+        #expect(try outcome.wording(from: languageBundle("en")).notes == [
+            "You stopped the import. Pictures already added are kept.",
+            "“4.jpg” wasn't added because you stopped the import.",
+            "“5.jpg” wasn't added because you stopped the import.",
+        ])
+    }
+
+    @Test func aStoppedImportSaysSoFirstAndNamesEachFileItDidNotAddInPolish() async throws {
+        let outcome = try await outcomeOfCreatingAWallpaperStoppedWhileReadingTheFourthOfFiveFiles()
+        #expect(try outcome.wording(from: languageBundle("pl")).notes == [
+            "Import został zatrzymany. Dodane już zdjęcia zostały zachowane.",
+            "Nie dodano pliku „4.jpg”, bo import został zatrzymany.",
+            "Nie dodano pliku „5.jpg”, bo import został zatrzymany.",
+        ])
     }
 }
