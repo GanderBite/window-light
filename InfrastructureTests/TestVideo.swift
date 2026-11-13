@@ -167,6 +167,37 @@ struct TestVideo {
         }
     }
 
+    enum RecordingTime {
+        case notCarried
+        case writtenWithItsOwnOffset(String)
+        case writtenAsAMoment(Date)
+        case writtenBothWays(withItsOwnOffset: String, asAMoment: Date)
+
+        fileprivate var metadata: [AVMetadataItem] {
+            switch self {
+            case let .writtenWithItsOwnOffset(written), let .writtenBothWays(written, _):
+                let creationDate = AVMutableMetadataItem()
+                creationDate.identifier = .quickTimeMetadataCreationDate
+                creationDate.dataType = kCMMetadataBaseDataType_UTF8 as String
+                creationDate.value = written as NSString
+                return [creationDate]
+            case .notCarried, .writtenAsAMoment:
+                return []
+            }
+        }
+
+        fileprivate var containerCreationTime: UInt32 {
+            get throws {
+                switch self {
+                case let .writtenAsAMoment(moment), let .writtenBothWays(_, moment):
+                    try TestVideo.secondsSinceTheContainerClockStarted(at: moment)
+                case .notCarried, .writtenWithItsOwnOffset:
+                    TestVideo.emptyContainerCreationTime
+                }
+            }
+        }
+    }
+
     enum Damage {
         case cutOffSoThatTheLastWholeFrameIs(Int)
         case cutOffSoThatNoFrameIsWhole
@@ -180,7 +211,11 @@ struct TestVideo {
         case counterCannotBeRead
         case frameCannotBeRead
         case frameIsNotStoredInOnePiece(frameNumber: Int)
+        case containerCreationTimeCannotBeFound
+        case momentCannotBeWrittenInTheContainer(Date)
     }
+
+    static let containerClockStart = Date(timeIntervalSince1970: -2_082_844_800)
 
     var width = 640
     var height = 360
@@ -189,6 +224,8 @@ struct TestVideo {
     var container = Container.mov
     var tracks = Tracks.runningCounter
     var turn = Turn.notTurned
+    var lengthInSeconds: Int?
+    var recordingTime = RecordingTime.notCarried
     var damage: Damage?
 
     private static let counterStripeCount = 12
@@ -212,6 +249,10 @@ struct TestVideo {
     private static let mostAMarkedCornerDiffersFromTheMark = 0.25
     private static let middlePartOfThePicture = 0.25
     private static let brightestStandardRGBValue = 255.0
+    private static let emptyContainerCreationTime: UInt32 = 0
+    private static let bytesInABoxHeader = 8
+    private static let bytesBeforeTheMovieCreationTime = 4
+    private static let movieHeaderVersionWithFourByteTimes: UInt8 = 0
 
     private static var softwareEncoder: [CFString: Bool] {
         [kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder: false]
@@ -269,6 +310,7 @@ struct TestVideo {
             try await writePictures(to: fileBeingMade)
         case .soundOnly: try await writeSound(to: fileBeingMade)
         }
+        try Self.writeContainerCreationTime(recordingTime.containerCreationTime, into: fileBeingMade)
         switch damage {
         case let .cutOffSoThatTheLastWholeFrameIs(frameNumber):
             try await Self.cutOff(fileBeingMade, afterFrame: frameNumber)
@@ -282,9 +324,23 @@ struct TestVideo {
     }
 
     static func counter(shownIn image: CGImage) throws -> Int {
-        var counter = 0
+        var litStripes = 0
         for stripe in 0 ..< counterStripeCount where try isLit(stripe, in: image) {
-            counter |= 1 << stripe
+            litStripes |= 1 << stripe
+        }
+        return counter(shownByLighting: litStripes)
+    }
+
+    private static func stripesLit(toShow counter: Int) -> Int {
+        counter ^ (counter >> 1)
+    }
+
+    private static func counter(shownByLighting litStripes: Int) -> Int {
+        var counter = 0
+        var stripesLeft = litStripes
+        while stripesLeft != 0 {
+            counter ^= stripesLeft
+            stripesLeft >>= 1
         }
         return counter
     }
@@ -436,6 +492,7 @@ struct TestVideo {
     private func writePictures(to file: URL) async throws {
         let writer = try AVAssetWriter(outputURL: file, fileType: container.fileType)
         writer.shouldOptimizeForNetworkUse = true
+        writer.metadata = recordingTime.metadata
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: pictureSettings)
         input.expectsMediaDataInRealTime = false
         input.transform = turn.transform(ofPictureStoredAsWidth: width, height: height)
@@ -480,7 +537,15 @@ struct TestVideo {
     }
 
     private func time(ofFrame frameNumber: Int) -> CMTime {
-        CMTime(value: CMTimeValue(frameNumber), timescale: CMTimeScale(framesPerSecond))
+        guard let lengthInSeconds else {
+            return CMTime(value: CMTimeValue(frameNumber), timescale: CMTimeScale(framesPerSecond))
+        }
+
+        return CMTimeMultiplyByRatio(
+            CMTime(value: CMTimeValue(lengthInSeconds), timescale: 1),
+            multiplier: Int32(frameNumber),
+            divisor: Int32(frameCount),
+        )
     }
 
     private func drawnFrame(showing frameNumber: Int) throws -> CVPixelBuffer {
@@ -539,7 +604,8 @@ struct TestVideo {
         context.setFillColor(gray: 0, alpha: 1)
         context.fill(CGRect(x: 0, y: 0, width: width, height: height))
         context.setFillColor(gray: 1, alpha: 1)
-        for stripe in 0 ..< Self.counterStripeCount where frameNumber & (1 << stripe) != 0 {
+        let litStripes = Self.stripesLit(toShow: frameNumber)
+        for stripe in 0 ..< Self.counterStripeCount where litStripes & (1 << stripe) != 0 {
             context.fill(Self.area(ofStripe: stripe, inPictureOfWidth: width, height: height))
         }
     }
@@ -734,6 +800,62 @@ struct TestVideo {
         }
 
         return cursor
+    }
+
+    static func containerCreationTime(of file: URL) throws -> UInt32 {
+        let content = try Data(contentsOf: file)
+        let offset = try offsetOfTheContainerCreationTime(in: content)
+        return content[offset ..< offset + MemoryLayout<UInt32>.size].reduce(0) { $0 << 8 | UInt32($1) }
+    }
+
+    fileprivate static func secondsSinceTheContainerClockStarted(at moment: Date) throws -> UInt32 {
+        guard let seconds = UInt32(exactly: moment.timeIntervalSince(containerClockStart).rounded(.down)) else {
+            throw MakingFailure.momentCannotBeWrittenInTheContainer(moment)
+        }
+
+        return seconds
+    }
+
+    private static func writeContainerCreationTime(_ secondsSinceTheClockStarted: UInt32, into file: URL) throws {
+        var content = try Data(contentsOf: file)
+        let offset = try offsetOfTheContainerCreationTime(in: content)
+        withUnsafeBytes(of: secondsSinceTheClockStarted.bigEndian) { bytes in
+            content.replaceSubrange(offset ..< offset + bytes.count, with: bytes)
+        }
+        try content.write(to: file)
+    }
+
+    private static func offsetOfTheContainerCreationTime(in content: Data) throws -> Int {
+        let movie = try contentRangeOfTheBox(named: "moov", in: content, within: 0 ..< content.count)
+        let movieHeader = try contentRangeOfTheBox(named: "mvhd", in: content, within: movie)
+        guard movieHeader.count > bytesBeforeTheMovieCreationTime + MemoryLayout<UInt32>.size,
+              content[movieHeader.lowerBound] == movieHeaderVersionWithFourByteTimes
+        else {
+            throw MakingFailure.containerCreationTimeCannotBeFound
+        }
+
+        return movieHeader.lowerBound + bytesBeforeTheMovieCreationTime
+    }
+
+    private static func contentRangeOfTheBox(
+        named name: String,
+        in content: Data,
+        within searched: Range<Int>,
+    ) throws -> Range<Int> {
+        var start = searched.lowerBound
+        while start + bytesInABoxHeader <= searched.upperBound {
+            let size = Int(content[start ..< start + 4].reduce(UInt32(0)) { $0 << 8 | UInt32($1) })
+            let boxName = content[start + 4 ..< start + bytesInABoxHeader]
+            guard size >= bytesInABoxHeader, start + size <= searched.upperBound else {
+                break
+            }
+
+            if boxName.elementsEqual(name.utf8) {
+                return start + bytesInABoxHeader ..< start + size
+            }
+            start += size
+        }
+        throw MakingFailure.containerCreationTimeCannotBeFound
     }
 
     private static func cutOff(_ file: URL, afterFrame lastWholeFrame: Int?) async throws {
