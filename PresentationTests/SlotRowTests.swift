@@ -81,4 +81,65 @@ struct SlotRowTests {
         #expect(withAdd.width > 0)
         #expect(withoutAdd.width <= withAdd.width)
     }
+
+    private func pictureActions(destinationCount: Int) -> SlotRow.PictureActions {
+        SlotRow.PictureActions(
+            menuTitle: "Picture actions",
+            moveTitle: "Move to",
+            destinations: (0 ..< destinationCount).map { index in
+                SlotRow.PictureActions.Destination(title: "Slot \(index + 1)", move: {})
+            },
+            removeTitle: "Remove picture",
+            remove: {},
+        )
+    }
+
+    private func rowWithPictureActions(
+        thumbnail: SlotRow.Thumbnail,
+        destinationCount: Int,
+        add: (() -> Void)? = nil,
+    ) -> SlotRow {
+        SlotRow(
+            slotName: "Morning",
+            thumbnail: thumbnail,
+            caption: "Added today",
+            addTitle: "Add picture",
+            add: add,
+            pictureActions: pictureActions(destinationCount: destinationCount),
+        )
+    }
+
+    @Test func rendersPictureActionsWithSevenDestinationsAtLeast44PointsHighInsideTheWidthForEveryThumbnail() throws {
+        let thumbnails: [SlotRow.Thumbnail] = [
+            .picture(makePicture()), .borrowedPicture(makePicture()), .empty,
+        ]
+        for thumbnail in thumbnails {
+            let size = try #require(renderedSize(
+                of: rowWithPictureActions(thumbnail: thumbnail, destinationCount: 7),
+                proposedWidth: 300,
+            ))
+            #expect(size.height >= 44)
+            #expect(size.width <= 300)
+            #expect(size.width > 0)
+        }
+    }
+
+    @Test func rendersPictureActionsWithoutDestinations() throws {
+        let size = try #require(renderedSize(
+            of: rowWithPictureActions(thumbnail: .picture(makePicture()), destinationCount: 0),
+            proposedWidth: 300,
+        ))
+        #expect(size.height >= 44)
+        #expect(size.width > 0)
+    }
+
+    @Test func rendersAnAddButtonTogetherWithPictureActions() throws {
+        let size = try #require(renderedSize(
+            of: rowWithPictureActions(thumbnail: .picture(makePicture()), destinationCount: 3, add: {}),
+            proposedWidth: 300,
+        ))
+        #expect(size.height >= 44)
+        #expect(size.width <= 300)
+        #expect(size.width > 0)
+    }
 }
