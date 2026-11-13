@@ -1128,19 +1128,19 @@
         }
       }
     },
-    "“%@” isn't a picture Window Light can use." : {
+    "“%@” isn't a picture or video Window Light can use." : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "“%@” isn't a picture Window Light can use."
+            "value" : "“%@” isn't a picture or video Window Light can use."
           }
         },
         "pl" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "„%@” nie jest zdjęciem, którego Window Light może użyć."
+            "value" : "„%@” nie jest zdjęciem ani filmem, którego Window Light może użyć."
           }
         }
       }

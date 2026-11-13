@@ -4,7 +4,7 @@ enum PictureImportText: String, CaseIterable {
     case importing = "Importing pictures"
     case picturesAdded = "%lld pictures added"
     case noPicturesAdded = "No pictures were added"
-    case notAPicture = "“%@” isn't a picture Window Light can use."
+    case notAPicture = "“%@” isn't a picture or video Window Light can use."
     case damaged = "“%@” is damaged and couldn't be opened."
     case soundOnly = "“%@” has sound only, so there is no picture to take from it."
     case copyProtected = "“%@” is copy-protected, so Window Light can't take a picture from it."
