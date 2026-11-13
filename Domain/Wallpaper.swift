@@ -127,6 +127,19 @@ public struct Wallpaper: Identifiable, Equatable, Sendable {
         return displaced
     }
 
+    public mutating func placeRealPicturesByTimeAgain() {
+        let realPictures = picturesInDayOrder.filter(\.isReal)
+        let slotsWithoutAIPicture = Slot.allCases.filter { slot in
+            pictures[slot].map(\.isReal) ?? true
+        }
+        for slot in slotsWithoutAIPicture {
+            pictures[slot] = nil
+        }
+        for placed in AutomaticPlacement(of: realPictures, into: slotsWithoutAIPicture).placedPictures {
+            pictures[placed.slot] = placed.picture
+        }
+    }
+
     @discardableResult
     public mutating func removePicture(from slot: Slot) -> Picture? {
         pictures.removeValue(forKey: slot)
