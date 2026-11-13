@@ -6,6 +6,8 @@ enum PictureImportText: String, CaseIterable {
     case noPicturesAdded = "No pictures were added"
     case notAPicture = "“%@” isn't a picture Window Light can use."
     case damaged = "“%@” is damaged and couldn't be opened."
+    case soundOnly = "“%@” has sound only, so there is no picture to take from it."
+    case copyProtected = "“%@” is copy-protected, so Window Light can't take a picture from it."
     case cannotBeRead = "“%@” couldn't be read."
     case alreadyInWallpaper = "“%@” is already in this wallpaper."
     case sameAsAnotherChosenFile = "“%@” is the same as another file you chose."

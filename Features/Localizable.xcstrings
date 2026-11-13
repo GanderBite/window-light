@@ -1026,6 +1026,40 @@
         }
       }
     },
+    "“%@” has sound only, so there is no picture to take from it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” has sound only, so there is no picture to take from it."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plik „%@” zawiera tylko dźwięk, więc nie ma w nim obrazu, z którego powstałoby zdjęcie."
+          }
+        }
+      }
+    },
+    "“%@” is copy-protected, so Window Light can't take a picture from it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” is copy-protected, so Window Light can't take a picture from it."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plik „%@” jest chroniony przed kopiowaniem, więc Window Light nie może pobrać z niego zdjęcia."
+          }
+        }
+      }
+    },
     "“%@” is damaged and couldn't be opened." : {
       "extractionState" : "manual",
       "localizations" : {

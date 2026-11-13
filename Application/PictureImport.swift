@@ -67,6 +67,8 @@ struct PictureImport {
         switch error {
         case .notAPicture: .notAPicture
         case .damaged: .damaged
+        case .soundOnly: .soundOnly
+        case .copyProtected: .copyProtected
         case .notFound, .notPermitted, .unexpected: .cannotBeRead
         }
     }

@@ -272,6 +272,34 @@ struct AddPicturesTests {
         #expect(await library.storedWallpapers == [addition.wallpaper])
     }
 
+    @Test func aSoundOnlyFileAmongGoodOnesIsSkippedAndTheGoodOnesAreAdded() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await storedWallpaper(in: library, holdingPicturesIn: [.dawn])
+        var chosen = try ChosenFiles(readable: ["1.jpg", "3.jpg"])
+        chosen.addFailing("2-concert.m4a", with: .soundOnly)
+
+        let addition = try await add(chosen, to: wallpaper.id, in: library)
+
+        #expect(addition.wallpaper.filledSlotCount == 3)
+        #expect(addition.summary.addedPictureCount == 2)
+        #expect(addition.summary.skippedFiles.map(\.name) == ["2-concert.m4a"])
+        #expect(addition.summary.skippedFiles.map(\.reason) == [.soundOnly])
+    }
+
+    @Test func aCopyProtectedFileAmongGoodOnesIsSkippedAndTheGoodOnesAreAdded() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await storedWallpaper(in: library, holdingPicturesIn: [.dawn])
+        var chosen = try ChosenFiles(readable: ["1.jpg", "3.jpg"])
+        chosen.addFailing("2-film.mov", with: .copyProtected)
+
+        let addition = try await add(chosen, to: wallpaper.id, in: library)
+
+        #expect(addition.wallpaper.filledSlotCount == 3)
+        #expect(addition.summary.addedPictureCount == 2)
+        #expect(addition.summary.skippedFiles.map(\.name) == ["2-film.mov"])
+        #expect(addition.summary.skippedFiles.map(\.reason) == [.copyProtected])
+    }
+
     @Test func runningOutOfSpaceAtTheSecondOfThreePicturesKeepsTheFirstAndSkipsTheRest() async throws {
         let library = LibraryThatRunsOutOfSpace(runningOutAfter: 1)
         let wallpaper = try await storedWallpaper(in: library, holdingPicturesIn: [.dawn])
