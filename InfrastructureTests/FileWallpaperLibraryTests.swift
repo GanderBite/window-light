@@ -180,7 +180,6 @@ private func renamed(_ wallpaper: Wallpaper, to newName: String) throws -> Wallp
 
 enum RefusedContent: CaseIterable {
     case nameThatIsNotAllowed
-    case noPictures
     case onePictureInTwoSlots
 }
 
@@ -932,7 +931,6 @@ struct FileWallpaperLibraryTests {
             try folder.replaceStoredDocument(of: stored) { document in
                 switch refused {
                 case .nameThatIsNotAllowed: document["name"] = "   "
-                case .noPictures: document["pictures"] = [String: String]()
                 case .onePictureInTwoSlots: document["pictures"] = ["dawn": dawnEntry, "night": dawnEntry]
                 }
             }
@@ -940,6 +938,22 @@ struct FileWallpaperLibraryTests {
             await #expect(throws: WallpaperLibraryError.unreadable) {
                 try await folder.library().wallpapers()
             }
+        }
+    }
+
+    @Test func aStoredWallpaperDocumentWithNoPicturesIsReadBackAsAWallpaperWithEightEmptySlots() async throws {
+        try await withLibraryFolder { folder in
+            let stored = try wallpaper(filling: [.dawn, .night])
+            try await add(stored, to: folder.library())
+            try folder.replaceStoredDocument(of: stored) { document in
+                document["pictures"] = [String: String]()
+            }
+
+            let readBack = try await folder.library().wallpaper(stored.id)
+
+            #expect(readBack.id == stored.id)
+            #expect(readBack.filledSlotCount == 0)
+            #expect(readBack.emptySlots == Slot.allCases)
         }
     }
 

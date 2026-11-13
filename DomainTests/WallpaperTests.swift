@@ -43,10 +43,11 @@ struct WallpaperTests {
         #expect(try wallpaper(pictures: [.morning: picture()]).filledSlotCount == 1)
     }
 
-    @Test func aWallpaperWithoutPicturesIsRefused() {
-        #expect(throws: WallpaperError.noPictures) {
-            try wallpaper(pictures: [:])
-        }
+    @Test func aWallpaperWithoutPicturesExistsWithEightEmptySlotsAndIsNotReadyToApply() throws {
+        let wallpaper = try wallpaper(pictures: [:])
+        #expect(wallpaper.filledSlotCount == 0)
+        #expect(wallpaper.emptySlots == Slot.allCases)
+        #expect(!wallpaper.isReadyToApply)
     }
 
     @Test func theSamePictureInTwoSlotsIsRefused() throws {

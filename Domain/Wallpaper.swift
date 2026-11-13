@@ -11,8 +11,6 @@ public struct Wallpaper: Identifiable, Equatable, Sendable {
     private var pictures: [Slot: Picture]
 
     public init(id: WallpaperID, name: WallpaperName, pictures: [Slot: Picture]) throws(WallpaperError) {
-        guard !pictures.isEmpty else { throw .noPictures }
-
         var seenIDs = Set<PictureID>()
         var seenFingerprints = Set<ContentFingerprint>()
         for slot in Slot.allCases {
@@ -108,6 +106,30 @@ public struct Wallpaper: Identifiable, Equatable, Sendable {
         }
 
         return pictures.updateValue(picture, forKey: slot)
+    }
+
+    public func canMovePicture(from slot: Slot) -> Bool {
+        pictures[slot]?.isReal ?? false
+    }
+
+    @discardableResult
+    public mutating func movePicture(from source: Slot, to destination: Slot) throws(WallpaperError) -> Picture? {
+        guard let moving = pictures[source] else { throw .noPictureToMove(source) }
+        guard moving.isReal else { throw .pictureMadeWithAICannotBeMoved(source) }
+        guard source != destination else { return nil }
+
+        let displaced = pictures.updateValue(moving, forKey: destination)
+        if let displaced, displaced.isReal {
+            pictures[source] = displaced
+            return nil
+        }
+        pictures[source] = nil
+        return displaced
+    }
+
+    @discardableResult
+    public mutating func removePicture(from slot: Slot) -> Picture? {
+        pictures.removeValue(forKey: slot)
     }
 
     private func holdsPicture(identicalTo fingerprint: ContentFingerprint, outside slot: Slot) -> Bool {
