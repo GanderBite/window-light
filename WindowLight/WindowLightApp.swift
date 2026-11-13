@@ -14,7 +14,7 @@ struct WindowLightApp: App {
     init() {
         let library = FileWallpaperLibrary()
         let previews = ImageIOPicturePreviews()
-        let files = ImageIOPictureFiles()
+        let files = ChosenPictureFiles()
         let libraryModel = LibraryModel(
             openLibrary: OpenLibrary(library: library),
             openWallpaper: OpenWallpaper(library: library),

@@ -18,7 +18,7 @@ private struct PictureImportPresenter: ViewModifier {
         content
             .fileImporter(
                 isPresented: isChoosingFiles,
-                allowedContentTypes: [.image],
+                allowedContentTypes: [.image, .movie],
                 allowsMultipleSelection: allowsSeveralFiles,
                 onCompletion: importChosenFiles,
                 onCancellation: model.cancelChoosingFiles,

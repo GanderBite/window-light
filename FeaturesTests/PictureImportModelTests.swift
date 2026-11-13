@@ -35,6 +35,24 @@ private func answersReading(
     return answers
 }
 
+private func readableVideo(
+    _ name: String,
+    fingerprint: String? = nil,
+    width: Int = PixelSize.sharpDesktopWidth,
+    height: Int = PixelSize.sharpDesktopHeight,
+) throws -> PictureFile {
+    try PictureFile(
+        content: Data("content of \(name)".utf8),
+        fingerprint: ContentFingerprint(fingerprint ?? "fingerprint of \(name)"),
+        captureTime: nil,
+        pixelSize: PixelSize(width: width, height: height),
+    )
+}
+
+private func videos(_ count: Int, startingAt first: Int = 1) -> [URL] {
+    (first ..< first + count).map { file("\($0).mov") }
+}
+
 private let interruptedRead = PictureFileError.unexpected(description: "The read was interrupted.")
 
 @discardableResult
@@ -265,6 +283,119 @@ struct PictureImportModelTests {
         await scene.model.importFiles(chosen, to: .slot(.dawn, of: wallpaper.id))
         #expect(scene.model.refusal == .slotHoldsRealPicture(.dawn))
         #expect(scene.model.outcome == nil)
+    }
+
+    @Test func twoVideosCreateAWallpaperWithTwoPictures() async throws {
+        let chosen = videos(2)
+        let scene = try ImportScene(answering: answersReading(chosen))
+        await scene.model.importFiles(chosen, to: .newWallpaper)
+        let outcome = try #require(scene.model.outcome)
+        #expect(outcome.summary.addedPictureCount == 2)
+        #expect(await scene.library.storedWallpapers.first?.filledSlotCount == 2)
+    }
+
+    @Test func threeImagesAndTwoVideosCreateAWallpaperWithFivePictures() async throws {
+        let chosen = files(3) + videos(2, startingAt: 4)
+        let scene = try ImportScene(answering: answersReading(chosen))
+        await scene.model.importFiles(chosen, to: .newWallpaper)
+        let outcome = try #require(scene.model.outcome)
+        #expect(outcome.summary.addedPictureCount == 5)
+        #expect(await scene.library.storedWallpapers.first?.filledSlotCount == 5)
+    }
+
+    @Test func fiveImagesAndFourVideosAreRefusedAsTooManyWithoutReadingAnyFile() async throws {
+        let chosen = files(5) + videos(4, startingAt: 6)
+        let scene = try ImportScene(answering: answersReading(chosen))
+        await scene.model.importFiles(chosen, to: .newWallpaper)
+        #expect(scene.model.refusal == .tooManyFiles(most: 8))
+        #expect(scene.model.outcome == nil)
+        #expect(await scene.pictureFiles.askedFiles.isEmpty)
+        #expect(await scene.library.storedWallpapers.isEmpty)
+    }
+
+    @Test func threeVideosForAWallpaperWithTwoEmptySlotsAreRefused() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(
+            filling: [.dawn, .sunrise, .morning, .midday, .afternoon, .dusk],
+            to: library,
+        )
+        let chosen = videos(3)
+        let scene = try ImportScene(answering: answersReading(chosen), library: library)
+        await scene.model.importFiles(chosen, to: .wallpaper(wallpaper.id))
+        #expect(scene.model.refusal == .moreFilesThanEmptySlots(emptySlots: 2))
+        #expect(scene.model.outcome == nil)
+        #expect(await scene.pictureFiles.askedFiles.isEmpty)
+    }
+
+    @Test func twoVideosForAWallpaperWithTwoEmptySlotsBothBecomePictures() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(
+            filling: [.dawn, .sunrise, .morning, .midday, .afternoon, .dusk],
+            to: library,
+        )
+        let chosen = videos(2)
+        let scene = try ImportScene(answering: answersReading(chosen), library: library)
+        await scene.model.importFiles(chosen, to: .wallpaper(wallpaper.id))
+        #expect(scene.model.outcome?.summary.addedPictureCount == 2)
+        #expect(await library.storedWallpaper(wallpaper.id)?.filledSlotCount == 8)
+    }
+
+    @Test func oneVideoForAnEmptySlotPutsItsPictureInThatSlot() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(filling: [.sunrise], to: library)
+        let chosen = videos(1)
+        let scene = try ImportScene(answering: answersReading(chosen), library: library)
+        await scene.model.importFiles(chosen, to: .slot(.dawn, of: wallpaper.id))
+        #expect(scene.model.outcome?.summary.addedPictureCount == 1)
+        #expect(await library.storedWallpaper(wallpaper.id)?.picture(in: .dawn) != nil)
+    }
+
+    @Test func twoVideosWithTheSameFingerprintGiveOnePictureAndNameTheOtherAsTheSame() async throws {
+        let first = file("1.mov")
+        let twin = file("2.mov")
+        let other = file("3.mov")
+        let answers: [URL: Result<PictureFile, PictureFileError>] = try [
+            first: .success(readableVideo("1.mov", fingerprint: "twin")),
+            twin: .success(readableVideo("2.mov", fingerprint: "twin")),
+            other: .success(readableVideo("3.mov")),
+        ]
+        let scene = ImportScene(answering: answers)
+        await scene.model.importFiles([first, twin, other], to: .newWallpaper)
+        let outcome = try #require(scene.model.outcome)
+        #expect(outcome.summary.addedPictureCount == 2)
+        #expect(outcome.summary.skippedFiles.map(\.name) == ["2.mov"])
+        #expect(outcome.summary.skippedFiles.map(\.reason) == [.sameAsAnotherChosenFile])
+    }
+
+    @Test func aVideoWithTheFingerprintOfAPictureInTheWallpaperIsSkippedAsAlreadyThere() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(filling: [.dawn], to: library)
+        let known = file("known.mov")
+        let fresh = file("fresh.mov")
+        let answers: [URL: Result<PictureFile, PictureFileError>] = try [
+            known: .success(readableVideo("known.mov", fingerprint: "stored picture in dawn")),
+            fresh: .success(readableVideo("fresh.mov")),
+        ]
+        let scene = ImportScene(answering: answers, library: library)
+        await scene.model.importFiles([known, fresh], to: .wallpaper(wallpaper.id))
+        let outcome = try #require(scene.model.outcome)
+        #expect(outcome.summary.addedPictureCount == 1)
+        #expect(outcome.summary.skippedFiles.map(\.name) == ["known.mov"])
+        #expect(outcome.summary.skippedFiles.map(\.reason) == [.alreadyInWallpaper])
+    }
+
+    @Test func aVideoSmallerThanASharpDesktopIsAddedAndNamedAsMaybeBlurry() async throws {
+        let sharp = file("sharp.mov")
+        let clip = file("clip.mov")
+        let answers: [URL: Result<PictureFile, PictureFileError>] = try [
+            sharp: .success(readableVideo("sharp.mov")),
+            clip: .success(readableVideo("clip.mov", width: 1280, height: 720)),
+        ]
+        let scene = ImportScene(answering: answers)
+        await scene.model.importFiles([sharp, clip], to: .newWallpaper)
+        let outcome = try #require(scene.model.outcome)
+        #expect(outcome.summary.addedPictureCount == 2)
+        #expect(outcome.summary.filesThatMayLookBlurry == ["clip.mov"])
     }
 
     @Test func importingTwoFilesToOneSlotIsRefusedWithoutCallingAJob() async throws {

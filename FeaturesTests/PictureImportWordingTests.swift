@@ -205,7 +205,7 @@ struct PictureImportWordingTests {
         try #require(outcome.summary.skippedFiles.count == 6)
         #expect(try outcome.wording(from: languageBundle("en")).notes == [
             "Your Mac ran out of storage, so the import stopped. Pictures already added are kept.",
-            "“a.jpg” isn't a picture Window Light can use.",
+            "“a.jpg” isn't a picture or video Window Light can use.",
             "“b.jpg” is damaged and couldn't be opened.",
             "“c.jpg” couldn't be read.",
             "“d.jpg” is already in this wallpaper.",
@@ -242,6 +242,27 @@ struct PictureImportWordingTests {
         #expect(polishNotes.count == 1)
         #expect(polishNotes.first?.contains("small.jpg") == true)
         #expect(polishNotes.first?.contains("1920 × 1080") == true)
+    }
+
+    @Test func aFileThatIsNeitherAPictureNorAVideoIsNamedInEnglishAndPolish() async throws {
+        let outcome = try await outcomeOfCreatingAWallpaper(from: [
+            "good.jpg": readable("good.jpg"),
+            "notes.txt": .failure(.notAPicture),
+        ])
+        #expect(try outcome.wording(from: languageBundle("en")).notes.first
+            == "“notes.txt” isn't a picture or video Window Light can use.")
+        #expect(try outcome.wording(from: languageBundle("pl")).notes.first
+            == "„notes.txt” nie jest zdjęciem ani filmem, którego Window Light może użyć.")
+    }
+
+    @Test func aVideoThatMayLookBlurryIsNamedWithTheSharpSize() async throws {
+        let outcome = try await outcomeOfCreatingAWallpaper(from: [
+            "sharp.mov": readable("sharp.mov"),
+            "clip.mov": readable("clip.mov", width: 1280, height: 720),
+        ])
+        #expect(try outcome.wording(from: languageBundle("en")).notes == [
+            "“clip.mov” is smaller than 1920 × 1080 and may look blurry on the desktop.",
+        ])
     }
 
     @Test func aWallpaperThatNeedsMorePicturesEndsTheNotesSayingSo() async throws {
