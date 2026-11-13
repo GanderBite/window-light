@@ -21,7 +21,12 @@ struct WindowLightApp: App {
             renameWallpaper: RenameWallpaper(library: library),
             deleteWallpaper: DeleteWallpaper(library: library),
         )
-        let wallpaperModel = WallpaperModel(openWallpaper: OpenWallpaper(library: library))
+        let wallpaperModel = WallpaperModel(
+            openWallpaper: OpenWallpaper(library: library),
+            arrangePictures: ArrangePictures(library: library),
+            finishArranging: FinishArranging(library: library),
+            wallpaperChanged: { _ in await libraryModel.reload() },
+        )
         let pictureImportModel = PictureImportModel(
             createWallpaper: CreateWallpaper(library: library, previews: previews, files: files),
             addPictures: AddPictures(library: library, previews: previews, files: files),
