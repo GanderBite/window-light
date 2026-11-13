@@ -211,6 +211,12 @@ private func withPicture(
     return changed
 }
 
+private func withoutPicture(in slot: Slot, of wallpaper: Wallpaper) -> Wallpaper {
+    var changed = wallpaper
+    changed.removePicture(from: slot)
+    return changed
+}
+
 private func content(of picture: Picture) -> Data {
     Data("content of added picture \(picture.id.value.uuidString)".utf8)
 }
@@ -392,7 +398,7 @@ struct FileWallpaperLibraryTests {
         }
     }
 
-    @Test func thePictureFilesOfAReplacedPictureAreGoneAfterKeepingItsReplacement() async throws {
+    @Test func thePictureFilesOfAReplacedPictureAreStillStoredAfterKeepingItsReplacement() async throws {
         try await withLibraryFolder { folder in
             let replaced = try picture(origin: .madeWithAI, captureTime: nil)
             let stored = try Wallpaper(
@@ -410,10 +416,168 @@ struct FileWallpaperLibraryTests {
                 addingPicturePreviews: [replacement.id: preview(of: replacement)],
             )
 
-            #expect(!FileManager.default.fileExists(atPath: folder.storedContentFile(of: replaced, in: stored).path))
-            #expect(!FileManager.default.fileExists(atPath: folder.storedPreviewFile(of: replaced, in: stored).path))
+            #expect(try Data(contentsOf: folder.storedContentFile(of: replaced, in: stored)) ==
+                contents(of: stored)[replaced.id])
+            #expect(try Data(contentsOf: folder.storedPreviewFile(of: replaced, in: stored)) ==
+                previews(of: stored)[replaced.id])
             #expect(try await folder.library().wallpaper(stored.id) == changed)
             #expect(try await folder.library().picturePreviews(of: stored.id).count == 2)
+        }
+    }
+
+    @Test func aPictureRemovedWithKeepStaysStoredButIsNoLongerAmongThePreviews() async throws {
+        try await withLibraryFolder { folder in
+            let stored = try wallpaper(filling: [.dawn, .midday, .night])
+            try await add(stored, to: folder.library())
+            let removed = try #require(stored.picture(in: .midday))
+
+            try await folder.library().keep(withoutPicture(in: .midday, of: stored))
+
+            #expect(try Data(contentsOf: folder.storedContentFile(of: removed, in: stored)) ==
+                contents(of: stored)[removed.id])
+            #expect(try Data(contentsOf: folder.storedPreviewFile(of: removed, in: stored)) ==
+                previews(of: stored)[removed.id])
+            let previewsAfterwards = try await folder.library().picturePreviews(of: stored.id)
+            #expect(previewsAfterwards[removed.id] == nil)
+            #expect(previewsAfterwards.count == 2)
+        }
+    }
+
+    @Test func aRemovedPicturePutBackInItsSlotComesBackWithItsPreviewAlsoAfterARestart() async throws {
+        try await withLibraryFolder { folder in
+            let library = folder.library()
+            let stored = try wallpaper(filling: [.dawn, .midday, .night])
+            try await add(stored, to: library)
+            let removed = try #require(stored.picture(in: .midday))
+            try await library.keep(withoutPicture(in: .midday, of: stored))
+
+            try await library.keep(stored)
+
+            #expect(try await library.wallpaper(stored.id).picture(in: .midday) == removed)
+            #expect(try await library.picturePreviews(of: stored.id)[removed.id] == previews(of: stored)[removed.id])
+            let restarted = folder.library()
+            #expect(try await restarted.wallpaper(stored.id) == stored)
+            #expect(try await restarted.picturePreviews(of: stored.id) == previews(of: stored))
+        }
+    }
+
+    @Test func picturesMovedBetweenSlotsWithKeepComeBackInTheirNewSlotsAfterARestart() async throws {
+        try await withLibraryFolder { folder in
+            let stored = try wallpaper(filling: [.dawn, .midday, .night])
+            try await add(stored, to: folder.library())
+            let dawnPicture = try #require(stored.picture(in: .dawn))
+            let middayPicture = try #require(stored.picture(in: .midday))
+            let nightPicture = try #require(stored.picture(in: .night))
+            var rearranged = stored
+            try rearranged.movePicture(from: .dawn, to: .midday)
+            try rearranged.movePicture(from: .night, to: .sunset)
+
+            try await folder.library().keep(rearranged)
+
+            let restarted = folder.library()
+            let restored = try await restarted.wallpaper(stored.id)
+            #expect(restored.picture(in: .dawn) == middayPicture)
+            #expect(restored.picture(in: .midday) == dawnPicture)
+            #expect(restored.picture(in: .sunset) == nightPicture)
+            #expect(restored.picture(in: .night) == nil)
+            #expect(try await restarted.picturePreviews(of: stored.id) == previews(of: stored))
+        }
+    }
+
+    @Test func discardingPicturesNoLongerHeldRemovesTheirFilesAndLeavesThoseOfHeldPicturesUnchanged() async throws {
+        try await withLibraryFolder { folder in
+            let library = folder.library()
+            let replaced = try picture(origin: .madeWithAI, captureTime: nil)
+            let stored = try Wallpaper(
+                id: WallpaperID(UUID()),
+                name: WallpaperName("Lisbon"),
+                pictures: [
+                    .dawn: replaced,
+                    .midday: picture(origin: .imported, captureTime: nil),
+                    .night: picture(origin: .imported, captureTime: nil),
+                ],
+            )
+            try await add(stored, to: library)
+            let removed = try #require(stored.picture(in: .midday))
+            let replacement = try picture(origin: .imported, captureTime: nil)
+            let changed = try withPicture(replacement, in: .dawn, of: withoutPicture(in: .midday, of: stored))
+            try await library.keep(
+                changed,
+                addingPictureContents: [replacement.id: content(of: replacement)],
+                addingPicturePreviews: [replacement.id: preview(of: replacement)],
+            )
+            let filesBefore = try filesOfEverythingInside(folder)
+
+            try await library.discardPicturesNoLongerHeld(by: stored.id)
+
+            for gone in [replaced, removed] {
+                #expect(!FileManager.default.fileExists(atPath: folder.storedContentFile(of: gone, in: stored).path))
+                #expect(!FileManager.default.fileExists(atPath: folder.storedPreviewFile(of: gone, in: stored).path))
+            }
+            let filesOfHeldPictures = filesBefore.filter { path, _ in
+                ![replaced, removed].contains { path.contains($0.id.value.uuidString) }
+            }
+            #expect(try filesOfEverythingInside(folder) == filesOfHeldPictures)
+            #expect(try await folder.library().wallpaper(stored.id) == changed)
+            #expect(try await folder.library().picturePreviews(of: stored.id).count == 2)
+        }
+    }
+
+    @Test func discardingPicturesNoLongerHeldLeavesOtherWallpapersAndFilesOutsideTheLibraryUnchanged(
+    ) async throws {
+        try await withLibraryFolder { folder in
+            let library = folder.library()
+            let other = try wallpaper(named: "Other")
+            let stored = try wallpaper(named: "Changed")
+            try await add(other, to: library)
+            try await add(stored, to: library)
+            let removed = try #require(stored.picture(in: .midday))
+            let outsideFile = folder.surroundings.appending(path: "Original picture")
+            let outsideBytes = try #require(contents(of: stored)[removed.id])
+            try outsideBytes.write(to: outsideFile)
+            try await library.keep(withoutPicture(in: .midday, of: stored))
+            let otherFilesBefore = try filesOfEverythingInside(folder).filter { path, _ in
+                path.contains(other.id.value.uuidString)
+            }
+
+            try await library.discardPicturesNoLongerHeld(by: stored.id)
+
+            let otherFilesAfterwards = try filesOfEverythingInside(folder).filter { path, _ in
+                path.contains(other.id.value.uuidString)
+            }
+            #expect(otherFilesAfterwards == otherFilesBefore)
+            #expect(otherFilesAfterwards.count == 7)
+            #expect(try Data(contentsOf: outsideFile) == outsideBytes)
+            let surroundingsAfterwards = try FileManager.default.contentsOfDirectory(atPath: folder.surroundings.path)
+            #expect(Set(surroundingsAfterwards) == ["Library", "Original picture"])
+            #expect(!FileManager.default.fileExists(atPath: folder.storedContentFile(of: removed, in: stored).path))
+        }
+    }
+
+    @Test func discardingPicturesNoLongerHeldWhenNothingIsLeftOverSucceedsAndChangesNoFile() async throws {
+        try await withLibraryFolder { folder in
+            let library = folder.library()
+            let stored = try wallpaper()
+            try await add(stored, to: library)
+            let filesBefore = try filesOfEverythingInside(folder)
+
+            try await library.discardPicturesNoLongerHeld(by: stored.id)
+
+            #expect(try filesOfEverythingInside(folder) == filesBefore)
+        }
+    }
+
+    @Test func discardingPicturesNoLongerHeldByAWallpaperNotInTheLibraryThrowsNotFoundAndChangesNoFile(
+    ) async throws {
+        try await withLibraryFolder { folder in
+            let library = folder.library()
+            try await add(wallpaper(), to: library)
+            let filesBefore = try filesOfEverythingInside(folder)
+
+            await #expect(throws: WallpaperLibraryError.notFound) {
+                try await library.discardPicturesNoLongerHeld(by: WallpaperID(UUID()))
+            }
+            #expect(try filesOfEverythingInside(folder) == filesBefore)
         }
     }
 

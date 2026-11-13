@@ -10,6 +10,7 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
         case add(WallpaperID)
         case keep(WallpaperID)
         case keepAdding(WallpaperID)
+        case discardPicturesNoLongerHeld(WallpaperID)
         case remove(WallpaperID)
         case wallpaperLastWorkedOn
         case rememberAsLastWorkedOn(WallpaperID)
@@ -22,6 +23,7 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
         case add
         case keep
         case keepAdding
+        case discardPicturesNoLongerHeld
         case remove
         case wallpaperLastWorkedOn
         case rememberAsLastWorkedOn
@@ -29,6 +31,7 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
 
     private(set) var storedWallpapers: [Wallpaper] = []
     private var storedPicturePreviews: [PictureID: Data] = [:]
+    private var wallpapersStoringPictures: [PictureID: WallpaperID] = [:]
     private var rememberedLastWorkedOn: WallpaperID?
     private(set) var receivedCalls: [Call] = []
     private var failures: [CallKind: WallpaperLibraryError] = [:]
@@ -60,6 +63,7 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
             .add,
             .keep,
             .keepAdding,
+            .discardPicturesNoLongerHeld,
             .remove,
             .wallpaperLastWorkedOn,
             .rememberAsLastWorkedOn,
@@ -113,6 +117,7 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
         storedWallpapers.append(wallpaper)
         for pictureID in pictureIDs {
             storedPicturePreviews[pictureID] = picturePreviews[pictureID]
+            wallpapersStoringPictures[pictureID] = wallpaper.id
         }
     }
 
@@ -132,6 +137,19 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
         guard let index = storedWallpapers.firstIndex(where: { $0.id == wallpaper.id }) else { throw .notFound }
 
         storedWallpapers[index] = wallpaper
+    }
+
+    func discardPicturesNoLongerHeld(by wallpaper: WallpaperID) async throws(WallpaperLibraryError) {
+        try await receive(.discardPicturesNoLongerHeld(wallpaper))
+        guard let found = storedWallpaper(wallpaper) else { throw .notFound }
+
+        let heldPictureIDs = Set(found.picturesInDayOrder.map(\.id))
+        for (pictureID, storingWallpaper) in wallpapersStoringPictures
+            where storingWallpaper == wallpaper && !heldPictureIDs.contains(pictureID)
+        {
+            storedPicturePreviews[pictureID] = nil
+            wallpapersStoringPictures[pictureID] = nil
+        }
     }
 
     func remove(_ wallpaper: WallpaperID) async throws(WallpaperLibraryError) {
@@ -179,6 +197,7 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
         case .add: .add
         case .keep: .keep
         case .keepAdding: .keepAdding
+        case .discardPicturesNoLongerHeld: .discardPicturesNoLongerHeld
         case .remove: .remove
         case .wallpaperLastWorkedOn: .wallpaperLastWorkedOn
         case .rememberAsLastWorkedOn: .rememberAsLastWorkedOn

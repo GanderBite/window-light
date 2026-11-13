@@ -10,6 +10,7 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
         case add(WallpaperID)
         case keep(WallpaperID)
         case keepAdding(WallpaperID)
+        case discardPicturesNoLongerHeld(WallpaperID)
         case remove(WallpaperID)
         case wallpaperLastWorkedOn
         case rememberAsLastWorkedOn(WallpaperID)
@@ -22,6 +23,7 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
         case add
         case keep
         case keepAdding
+        case discardPicturesNoLongerHeld
         case remove
         case wallpaperLastWorkedOn
         case rememberAsLastWorkedOn
@@ -30,6 +32,7 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
     private(set) var storedWallpapers: [Wallpaper] = []
     private(set) var storedPictureContents: [PictureID: Data] = [:]
     private(set) var storedPicturePreviews: [PictureID: Data] = [:]
+    private var wallpapersStoringPictures: [PictureID: WallpaperID] = [:]
     private var rememberedLastWorkedOn: WallpaperID?
     private(set) var receivedCalls: [Call] = []
     private var failures: [CallKind: WallpaperLibraryError] = [:]
@@ -61,6 +64,7 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
             .add,
             .keep,
             .keepAdding,
+            .discardPicturesNoLongerHeld,
             .remove,
             .wallpaperLastWorkedOn,
             .rememberAsLastWorkedOn,
@@ -107,6 +111,7 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
         for pictureID in pictureIDs {
             storedPictureContents[pictureID] = pictureContents[pictureID]
             storedPicturePreviews[pictureID] = picturePreviews[pictureID]
+            wallpapersStoringPictures[pictureID] = wallpaper.id
         }
     }
 
@@ -125,14 +130,26 @@ actor WallpaperLibraryStandIn: WallpaperLibrary {
         try receive(.keepAdding(wallpaper.id), of: .keepAdding)
         guard let index = storedWallpapers.firstIndex(where: { $0.id == wallpaper.id }) else { throw .notFound }
 
-        let keptPictureIDs = Set(wallpaper.picturesInDayOrder.map(\.id))
-        for gonePicture in storedWallpapers[index].picturesInDayOrder where !keptPictureIDs.contains(gonePicture.id) {
-            storedPictureContents[gonePicture.id] = nil
-            storedPicturePreviews[gonePicture.id] = nil
-        }
         storedPictureContents.merge(addingPictureContents) { _, added in added }
         storedPicturePreviews.merge(addingPicturePreviews) { _, added in added }
+        for addedPictureID in addingPictureContents.keys {
+            wallpapersStoringPictures[addedPictureID] = wallpaper.id
+        }
         storedWallpapers[index] = wallpaper
+    }
+
+    func discardPicturesNoLongerHeld(by wallpaper: WallpaperID) async throws(WallpaperLibraryError) {
+        try receive(.discardPicturesNoLongerHeld(wallpaper), of: .discardPicturesNoLongerHeld)
+        guard let found = storedWallpapers.first(where: { $0.id == wallpaper }) else { throw .notFound }
+
+        let heldPictureIDs = Set(found.picturesInDayOrder.map(\.id))
+        for (pictureID, storingWallpaper) in wallpapersStoringPictures
+            where storingWallpaper == wallpaper && !heldPictureIDs.contains(pictureID)
+        {
+            storedPictureContents[pictureID] = nil
+            storedPicturePreviews[pictureID] = nil
+            wallpapersStoringPictures[pictureID] = nil
+        }
     }
 
     func remove(_ wallpaper: WallpaperID) async throws(WallpaperLibraryError) {

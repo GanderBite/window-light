@@ -78,7 +78,6 @@ public actor FileWallpaperLibrary: WallpaperLibrary {
         let layout = try layout()
         let stored = try storedWallpaper(wallpaper.id, in: layout)
         let addedPictures = Self.pictures(of: wallpaper, notHeldBy: stored.wallpaper)
-        let gonePictures = Self.pictures(of: stored.wallpaper, notHeldBy: wallpaper)
         try Self.checkOnlyTheAddedPicturesAreGiven(
             addedPictures,
             to: wallpaper.id,
@@ -99,7 +98,6 @@ public actor FileWallpaperLibrary: WallpaperLibrary {
             Self.discardFilesLeavingAnyThatResist(of: addedPictures, inWallpaper: wallpaper.id, in: layout)
             throw error
         }
-        Self.discardFilesLeavingAnyThatResist(of: gonePictures, inWallpaper: wallpaper.id, in: layout)
     }
 
     public func remove(_ wallpaper: WallpaperID) async throws(WallpaperLibraryError) {
@@ -283,7 +281,31 @@ public actor FileWallpaperLibrary: WallpaperLibrary {
     }
 }
 
+public extension FileWallpaperLibrary {
+    func discardPicturesNoLongerHeld(by wallpaper: WallpaperID) async throws(WallpaperLibraryError) {
+        let layout = try layout()
+        let heldPictures = try Set(storedWallpaper(wallpaper, in: layout).wallpaper.picturesInDayOrder.map(\.id))
+        for folder in layout.pictureFileFolders(ofWallpaper: wallpaper) {
+            for file in try Self.filesInside(folder) where !layout.names(file, asOneOf: heldPictures) {
+                try Self.removeUnlessAlreadyGone(file)
+            }
+        }
+    }
+}
+
 private extension FileWallpaperLibrary {
+    static func filesInside(_ folder: URL) throws(WallpaperLibraryError) -> [URL] {
+        do {
+            return try translatingFailures {
+                try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
+            }
+        } catch .notFound {
+            return []
+        } catch {
+            throw error
+        }
+    }
+
     static func pictureFiles(
         of pictures: [PictureID],
         inWallpaper wallpaper: WallpaperID,

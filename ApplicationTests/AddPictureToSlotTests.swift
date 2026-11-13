@@ -106,10 +106,12 @@ struct AddPictureToSlotTests {
         #expect(await library.storedPictureContents[added.id] == content(of: "late.jpg"))
     }
 
-    @Test func aFileAddedIntoDawnHoldingAnAIPictureReplacesItAndTheLibraryForgetsItsFiles() async throws {
+    @Test func aFileAddedIntoDawnHoldingAnAIPictureReplacesItAndTheLibraryStillStoresItsFiles() async throws {
         let library = WallpaperLibraryStandIn()
         let wallpaper = try await storedWallpaper(in: library, holding: [.dawn: .madeWithAI, .night: .imported])
         let aiPicture = try #require(wallpaper.picture(in: .dawn))
+        let aiPictureContent = try #require(await library.storedPictureContents[aiPicture.id])
+        let aiPicturePreview = try #require(await library.storedPicturePreviews[aiPicture.id])
 
         let addition = try await add(
             "real.jpg",
@@ -123,8 +125,8 @@ struct AddPictureToSlotTests {
         #expect(addition.wallpaper.picturesInDayOrder.contains(aiPicture) == false)
         #expect(addition.wallpaper.filledSlotCount == 2)
         #expect(await library.storedWallpapers == [addition.wallpaper])
-        #expect(await library.storedPictureContents[aiPicture.id] == nil)
-        #expect(await library.storedPicturePreviews[aiPicture.id] == nil)
+        #expect(await library.storedPictureContents[aiPicture.id] == aiPictureContent)
+        #expect(await library.storedPicturePreviews[aiPicture.id] == aiPicturePreview)
     }
 
     @Test func aFileForDawnHoldingARealPictureIsRefusedWithoutReadingItOrWritingTheLibrary() async throws {
