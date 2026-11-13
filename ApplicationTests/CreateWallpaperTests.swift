@@ -142,6 +142,10 @@ private actor LibraryThatRunsOutOfSpace: WallpaperLibrary {
         )
     }
 
+    func discardPicturesNoLongerHeld(by wallpaper: WallpaperID) async throws(WallpaperLibraryError) {
+        try await storedLibrary.discardPicturesNoLongerHeld(by: wallpaper)
+    }
+
     func remove(_ wallpaper: WallpaperID) async throws(WallpaperLibraryError) {
         try await storedLibrary.remove(wallpaper)
     }

@@ -16,6 +16,7 @@ public protocol WallpaperLibrary: Sendable {
         addingPictureContents: [PictureID: Data],
         addingPicturePreviews: [PictureID: Data],
     ) async throws(WallpaperLibraryError)
+    func discardPicturesNoLongerHeld(by wallpaper: WallpaperID) async throws(WallpaperLibraryError)
     func remove(_ wallpaper: WallpaperID) async throws(WallpaperLibraryError)
     func wallpaperLastWorkedOn() async throws(WallpaperLibraryError) -> WallpaperID?
     func rememberAsLastWorkedOn(_ wallpaper: WallpaperID) async throws(WallpaperLibraryError)

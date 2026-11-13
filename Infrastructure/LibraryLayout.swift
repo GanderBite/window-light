@@ -40,12 +40,21 @@ struct LibraryLayout {
         wallpaperFolder.appending(path: "Previews", directoryHint: .isDirectory)
     }
 
+    func pictureFileFolders(ofWallpaper wallpaper: WallpaperID) -> [URL] {
+        let wallpaperFolder = wallpaperFolder(of: wallpaper)
+        return [picturesFolder(in: wallpaperFolder), previewsFolder(in: wallpaperFolder)]
+    }
+
     func contentFile(of picture: PictureID, inWallpaper wallpaper: WallpaperID) -> URL {
         file(of: picture, in: picturesFolder(in: wallpaperFolder(of: wallpaper)))
     }
 
     func previewFile(of picture: PictureID, inWallpaper wallpaper: WallpaperID) -> URL {
         file(of: picture, in: previewsFolder(in: wallpaperFolder(of: wallpaper)))
+    }
+
+    func names(_ file: URL, asOneOf pictures: Set<PictureID>) -> Bool {
+        pictures.contains { $0.value.uuidString == file.lastPathComponent }
     }
 
     func file(of picture: PictureID, in folder: URL) -> URL {
