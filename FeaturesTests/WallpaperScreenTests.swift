@@ -193,6 +193,21 @@ struct WallpaperScreenTests {
         #expect(size.height > 0)
     }
 
+    @Test func rendersAWallpaperWithASelectedSlot() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(
+            picturesBySlot: [.morning: picture(madeWith: .imported), .dusk: picture(madeWith: .imported)],
+            to: library,
+        )
+        let model = wallpaperModel(over: library)
+        await model.show(wallpaper.id)
+        model.select(.morning)
+        try #require(model.selectedSlot == .morning)
+        let size = try renderedSize(of: screen(of: model), height: 600)
+        #expect(size.width > 0)
+        #expect(size.height > 0)
+    }
+
     @Test func rendersAWallpaperThatIsGone() async throws {
         let model = wallpaperModel(over: WallpaperLibraryStandIn())
         await model.show(WallpaperID(UUID()))

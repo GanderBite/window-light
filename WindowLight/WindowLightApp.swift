@@ -71,5 +71,11 @@ struct WindowLightApp: App {
                 await wallpaperModel.show(libraryModel.openWallpaperID)
             }
         }
+        .commands {
+            WallpaperCommands(
+                model: wallpaperModel,
+                addPicture: { slot, wallpaper in pictureImportModel.chooseFiles(for: .slot(slot, of: wallpaper)) },
+            )
+        }
     }
 }

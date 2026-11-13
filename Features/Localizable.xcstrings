@@ -548,6 +548,40 @@
         }
       }
     },
+    "Move to Earlier Time of Day" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move to Earlier Time of Day"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przenieś do wcześniejszej pory dnia"
+          }
+        }
+      }
+    },
+    "Move to Later Time of Day" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move to Later Time of Day"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przenieś do późniejszej pory dnia"
+          }
+        }
+      }
+    },
     "Night" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -716,6 +750,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Otwieranie tapet"
+          }
+        }
+      }
+    },
+    "Picture" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Picture"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zdjęcie"
           }
         }
       }

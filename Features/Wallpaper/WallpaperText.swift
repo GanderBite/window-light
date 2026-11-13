@@ -48,6 +48,9 @@ enum WallpaperText: String, CaseIterable {
     case pictureRemoval = "Picture Removal"
     case placingByTime = "Placing by Time"
     case pictureAddition = "Picture Addition"
+    case pictureMenu = "Picture"
+    case moveEarlier = "Move to Earlier Time of Day"
+    case moveLater = "Move to Later Time of Day"
 
     static func name(of slot: Slot) -> Self {
         switch slot {
