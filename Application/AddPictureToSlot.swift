@@ -98,8 +98,9 @@ public struct AddPictureToSlot: Sendable {
     private static func addPictureToSlotError(for wallpaperError: WallpaperError) -> AddPictureToSlotError {
         switch wallpaperError {
         case let .slotHoldsRealPicture(slot): .slotHoldsRealPicture(slot)
-        case .noPictures, .pictureInTwoSlots, .tooFewFilesToCreate, .tooManyFilesToCreate, .noEmptySlot,
-             .moreFilesThanEmptySlots, .identicalPictureAlreadyInWallpaper:
+        case .pictureInTwoSlots, .tooFewFilesToCreate, .tooManyFilesToCreate, .noEmptySlot,
+             .moreFilesThanEmptySlots, .identicalPictureAlreadyInWallpaper, .noPictureToMove,
+             .pictureMadeWithAICannotBeMoved:
             .unavailable(description: wallpaperError.descriptionOfTheBrokenRule)
         }
     }

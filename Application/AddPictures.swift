@@ -107,8 +107,8 @@ public struct AddPictures: Sendable {
         switch wallpaperError {
         case .noEmptySlot: .noEmptySlot
         case let .moreFilesThanEmptySlots(emptySlots): .moreFilesThanEmptySlots(emptySlots: emptySlots)
-        case .noPictures, .pictureInTwoSlots, .tooFewFilesToCreate, .tooManyFilesToCreate, .slotHoldsRealPicture,
-             .identicalPictureAlreadyInWallpaper:
+        case .pictureInTwoSlots, .tooFewFilesToCreate, .tooManyFilesToCreate, .slotHoldsRealPicture,
+             .identicalPictureAlreadyInWallpaper, .noPictureToMove, .pictureMadeWithAICannotBeMoved:
             .unavailable(description: wallpaperError.descriptionOfTheBrokenRule)
         }
     }

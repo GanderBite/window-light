@@ -120,7 +120,6 @@ public struct CreateWallpaper: Sendable {
         switch wallpaperError {
         case let .tooFewFilesToCreate(fewest): .tooFewFiles(fewest: fewest)
         case let .tooManyFilesToCreate(most): .tooManyFiles(most: most)
-        case .noPictures: .unavailable(description: "A wallpaper was created without pictures.")
         case .pictureInTwoSlots: .unavailable(description: "A picture was given to two slots.")
         case .noEmptySlot: .unavailable(description: "A picture was given to a wallpaper with no empty slot.")
         case .moreFilesThanEmptySlots:
@@ -129,6 +128,9 @@ public struct CreateWallpaper: Sendable {
             .unavailable(description: "A picture was given to a slot that holds a real picture.")
         case .identicalPictureAlreadyInWallpaper:
             .unavailable(description: "Two identical pictures were given to one wallpaper.")
+        case .noPictureToMove: .unavailable(description: "A picture was moved from an empty slot.")
+        case .pictureMadeWithAICannotBeMoved:
+            .unavailable(description: "A picture made with AI was moved to another slot.")
         }
     }
 }

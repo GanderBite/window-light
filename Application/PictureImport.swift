@@ -219,7 +219,6 @@ struct ImportedFiles {
 extension WallpaperError {
     var descriptionOfTheBrokenRule: String {
         switch self {
-        case .noPictures: "A wallpaper was left without pictures."
         case .pictureInTwoSlots: "A picture was given to two slots."
         case .tooFewFilesToCreate: "Too few files were given to create a wallpaper."
         case .tooManyFilesToCreate: "Too many files were given to create a wallpaper."
@@ -227,6 +226,8 @@ extension WallpaperError {
         case .moreFilesThanEmptySlots: "More pictures were given than the wallpaper has empty slots."
         case .slotHoldsRealPicture: "A picture was given to a slot that holds a real picture."
         case .identicalPictureAlreadyInWallpaper: "Two identical pictures were given to one wallpaper."
+        case .noPictureToMove: "A picture was moved from an empty slot."
+        case .pictureMadeWithAICannotBeMoved: "A picture made with AI was moved to another slot."
         }
     }
 }
