@@ -180,8 +180,9 @@ public struct WallpaperScreen: View {
                 }
             }
         }
-        .dropDestination(for: URL.self, isEnabled: canTakeADroppedFile(into: state)) { files, _ in
-            reportDroppedFiles(files, onto: state)
+        .modifier(DraggingThePicture(picture: draggedPicture(in: state), preview: state.preview))
+        .dropDestination(for: SlotRowDrop.self, isEnabled: openWallpaperID != nil) { drops, _ in
+            take(drops, onto: state)
         }
     }
 
@@ -291,6 +292,35 @@ private extension WallpaperScreen {
 
     func movePicture(from source: Slot, to destination: Slot) {
         send { await model.movePicture(from: source, to: destination) }
+    }
+
+    func draggedPicture(in state: WallpaperModel.SlotState) -> DraggedPicture? {
+        guard state.canBeMoved, let wallpaper = openWallpaperID else { return nil }
+
+        return DraggedPicture(slot: state.slot, wallpaper: wallpaper)
+    }
+
+    func take(_ drops: [SlotRowDrop], onto state: WallpaperModel.SlotState) {
+        let files = drops.compactMap(\.file)
+        if !files.isEmpty {
+            reportDroppedFilesOnARow(files, onto: state)
+        } else if let picture = drops.lazy.compactMap(\.picture).first {
+            move(picture, onto: state.slot)
+        }
+    }
+
+    func reportDroppedFilesOnARow(_ files: [URL], onto state: WallpaperModel.SlotState) {
+        if canTakeADroppedFile(into: state) {
+            reportDroppedFiles(files, onto: state)
+        } else {
+            reportDroppedFiles(files)
+        }
+    }
+
+    func move(_ picture: DraggedPicture, onto destination: Slot) {
+        guard picture.wallpaper == openWallpaperID, picture.slot != destination else { return }
+
+        movePicture(from: picture.slot, to: destination)
     }
 
     func name(of slot: Slot) -> String {
