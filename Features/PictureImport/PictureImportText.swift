@@ -26,6 +26,7 @@ enum PictureImportText: String, CaseIterable {
     case wallpaperGone = "This wallpaper is no longer in your library."
     case couldNotImport = "The pictures couldn't be imported. Try again."
     case ok = "OK"
+    case stop = "Stop"
 
     var key: String {
         rawValue

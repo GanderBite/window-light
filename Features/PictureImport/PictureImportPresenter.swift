@@ -43,8 +43,14 @@ private struct PictureImportPresenter: ViewModifier {
     }
 
     private var importingSign: some View {
-        ProgressView {
-            Text(verbatim: PictureImportText.importing.inTheAppLanguage)
+        VStack(spacing: 12) {
+            ProgressView {
+                Text(verbatim: PictureImportText.importing.inTheAppLanguage)
+            }
+            Button(action: model.stopImporting) {
+                Text(verbatim: PictureImportText.stop.inTheAppLanguage)
+            }
+            .keyboardShortcut(.cancelAction)
         }
         .padding()
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))

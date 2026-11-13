@@ -22,10 +22,18 @@ private func readablePictures(_ count: Int) throws -> [URL: Result<PictureFile, 
     return answers
 }
 
+private func languageBundle(_ language: String) throws -> Bundle {
+    let languageURL = try #require(Bundle.module.url(forResource: language, withExtension: "lproj"))
+    return try #require(Bundle(url: languageURL))
+}
+
 @MainActor
-private func importModel(answering answers: [URL: Result<PictureFile, PictureFileError>]) -> PictureImportModel {
+private func importModel(
+    answering answers: [URL: Result<PictureFile, PictureFileError>],
+    reading pictureFiles: PictureFilesStandIn? = nil,
+) -> PictureImportModel {
     let library = WallpaperLibraryStandIn()
-    let pictureFiles = PictureFilesStandIn(answering: answers)
+    let pictureFiles = pictureFiles ?? PictureFilesStandIn(answering: answers)
     let previews = PicturePreviewsStandIn()
     return PictureImportModel(
         createWallpaper: CreateWallpaper(library: library, previews: previews, files: pictureFiles),
@@ -76,5 +84,30 @@ struct PictureImportPresenterTests {
         #expect(model.refusal == .tooManyFiles(most: 8))
         #expect(size.width > 0)
         #expect(size.height > 0)
+    }
+
+    @Test func rendersAViewWhileTheModelIsImporting() async throws {
+        let answers = try readablePictures(2)
+        let fileBeingRead = file("1.jpg")
+        let pictureFiles = PictureFilesStandIn(answering: answers, waitingWhenAskedFor: fileBeingRead)
+        let model = importModel(answering: answers, reading: pictureFiles)
+        let runningImport = Task { await model.importFiles(Array(answers.keys), to: .newWallpaper) }
+        await pictureFiles.untilTheWaitingReadHasStarted()
+        try #require(model.isImporting)
+        let size = try renderedSize(of: model)
+        #expect(size.width > 0)
+        #expect(size.height > 0)
+        model.stopImporting()
+        await pictureFiles.letTheWaitingReadGoOn()
+        await runningImport.value
+        #expect(model.outcome?.summary.wasStopped == true)
+    }
+
+    @Test func theStopButtonSaysStopInEnglish() throws {
+        #expect(try PictureImportText.stop.text(from: languageBundle("en")) == "Stop")
+    }
+
+    @Test func theStopButtonSaysZatrzymajInPolish() throws {
+        #expect(try PictureImportText.stop.text(from: languageBundle("pl")) == "Zatrzymaj")
     }
 }
