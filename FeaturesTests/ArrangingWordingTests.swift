@@ -81,4 +81,47 @@ struct ArrangingWordingTests {
         let bundle = try languageBundle(language)
         #expect(ArrangingWording.announcement(of: .picturesAdded, from: bundle) == nil)
     }
+
+    @Test func everyNewStepNamesItsUndoActionInEnglish() throws {
+        let english = try languageBundle("en")
+        let steps: [WallpaperModel.Step] = [
+            .moved(from: .morning, to: .afternoon),
+            .swapped(.dawn, with: .dusk),
+            .removed(from: .night),
+            .placedByTimeAgain,
+            .picturesAdded,
+        ]
+        #expect(
+            steps.map { ArrangingWording.undoActionName(of: $0, from: english) }
+                == ["Picture Move", "Picture Swap", "Picture Removal", "Placing by Time", "Picture Addition"],
+        )
+    }
+
+    @Test func everyNewStepNamesItsUndoActionInPolish() throws {
+        let polish = try languageBundle("pl")
+        let steps: [WallpaperModel.Step] = [
+            .moved(from: .morning, to: .afternoon),
+            .swapped(.dawn, with: .dusk),
+            .removed(from: .night),
+            .placedByTimeAgain,
+            .picturesAdded,
+        ]
+        #expect(
+            steps.map { ArrangingWording.undoActionName(of: $0, from: polish) }
+                == [
+                    "Przeniesienie zdjęcia",
+                    "Zamiana zdjęć",
+                    "Usunięcie zdjęcia",
+                    "Ułożenie według czasu",
+                    "Dodanie zdjęć",
+                ],
+        )
+    }
+
+    @Test(arguments: ["en", "pl"])
+    func undoingAndRedoingNameNoUndoAction(language: String) throws {
+        let bundle = try languageBundle(language)
+        #expect(ArrangingWording.undoActionName(of: .undone, from: bundle) == nil)
+        #expect(ArrangingWording.undoActionName(of: .redone, from: bundle) == nil)
+    }
 }

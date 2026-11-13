@@ -737,6 +737,74 @@
         }
       }
     },
+    "Picture Addition" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Picture Addition"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dodanie zdjęć"
+          }
+        }
+      }
+    },
+    "Picture Move" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Picture Move"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przeniesienie zdjęcia"
+          }
+        }
+      }
+    },
+    "Picture Removal" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Picture Removal"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usunięcie zdjęcia"
+          }
+        }
+      }
+    },
+    "Picture Swap" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Picture Swap"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zamiana zdjęć"
+          }
+        }
+      }
+    },
     "Place by Time" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -784,6 +852,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Ułożyć zdjęcia ponownie według czasu?"
+          }
+        }
+      }
+    },
+    "Placing by Time" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Placing by Time"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ułożenie według czasu"
           }
         }
       }
