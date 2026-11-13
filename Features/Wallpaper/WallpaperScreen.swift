@@ -95,7 +95,7 @@ public struct WallpaperScreen: View {
         let add = addAction(for: state)
         return SlotRow(
             slotName: slotName,
-            picture: state.preview,
+            thumbnail: state.preview.map { SlotRow.Thumbnail.picture($0) } ?? .empty,
             caption: caption,
             addTitle: WallpaperText.addPicture.inTheAppLanguage,
             add: add,

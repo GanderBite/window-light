@@ -2,22 +2,29 @@ import CoreGraphics
 import SwiftUI
 
 public struct SlotRow: View {
+    public enum Thumbnail {
+        case picture(CGImage)
+        case borrowedPicture(CGImage)
+        case empty
+    }
+
     private static let rowMinimumHeight: CGFloat = 44
     private static let thumbnailWidth: CGFloat = 64
     private static let thumbnailHeight: CGFloat = 40
     private static let thumbnailCornerRadius: CGFloat = 4
     private static let placeholderDash: [CGFloat] = [4, 3]
     private static let textMinimumWidth: CGFloat = 80
+    private static let borrowedPictureOpacity: Double = 0.5
 
     private let slotName: String
-    private let picture: CGImage?
+    private let thumbnail: Thumbnail
     private let caption: String
     private let addTitle: String
     private let add: (() -> Void)?
 
-    public init(slotName: String, picture: CGImage?, caption: String, addTitle: String, add: (() -> Void)?) {
+    public init(slotName: String, thumbnail: Thumbnail, caption: String, addTitle: String, add: (() -> Void)?) {
         self.slotName = slotName
-        self.picture = picture
+        self.thumbnail = thumbnail
         self.caption = caption
         self.addTitle = addTitle
         self.add = add
@@ -25,7 +32,7 @@ public struct SlotRow: View {
 
     public var body: some View {
         HStack(spacing: 10) {
-            thumbnail
+            thumbnailView
             texts
             addButton
         }
@@ -33,21 +40,34 @@ public struct SlotRow: View {
         .frame(minHeight: Self.rowMinimumHeight)
     }
 
-    private var thumbnail: some View {
+    private var thumbnailView: some View {
         Group {
-            if let picture {
-                Image(decorative: picture, scale: 1)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: Self.thumbnailWidth, height: Self.thumbnailHeight)
-                    .clipShape(RoundedRectangle(cornerRadius: Self.thumbnailCornerRadius))
-            } else {
-                RoundedRectangle(cornerRadius: Self.thumbnailCornerRadius)
-                    .strokeBorder(.secondary, style: StrokeStyle(lineWidth: 1, dash: Self.placeholderDash))
-                    .frame(width: Self.thumbnailWidth, height: Self.thumbnailHeight)
+            switch thumbnail {
+            case let .picture(picture):
+                filledFrame(of: picture)
+            case let .borrowedPicture(picture):
+                filledFrame(of: picture)
+                    .opacity(Self.borrowedPictureOpacity)
+                    .overlay { dashedBorder }
+            case .empty:
+                dashedBorder
             }
         }
         .accessibilityHidden(true)
+    }
+
+    private func filledFrame(of picture: CGImage) -> some View {
+        Image(decorative: picture, scale: 1)
+            .resizable()
+            .scaledToFill()
+            .frame(width: Self.thumbnailWidth, height: Self.thumbnailHeight)
+            .clipShape(RoundedRectangle(cornerRadius: Self.thumbnailCornerRadius))
+    }
+
+    private var dashedBorder: some View {
+        RoundedRectangle(cornerRadius: Self.thumbnailCornerRadius)
+            .strokeBorder(.secondary, style: StrokeStyle(lineWidth: 1, dash: Self.placeholderDash))
+            .frame(width: Self.thumbnailWidth, height: Self.thumbnailHeight)
     }
 
     private var texts: some View {
