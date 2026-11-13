@@ -216,7 +216,7 @@ struct CreateWallpaperTests {
         }
     }
 
-    @Test func aPictureHasTheCaptureTimeItsFileReportedAndNoneWhenItsFileReportedNone() async throws {
+    @Test func aPictureTakenAtNineIsInMorningAndAPictureWithoutACaptureTimeIsInDuskFarthestFromIt() async throws {
         var chosen = ChosenFiles()
         let morning = try captureTime(hour: 9)
         try chosen.addReadable("1.jpg", captureTime: morning)
@@ -224,18 +224,19 @@ struct CreateWallpaperTests {
 
         let wallpaper = try #require(try await create(chosen).wallpaper)
 
-        #expect(wallpaper.picture(in: .dawn)?.captureTime == morning)
-        #expect(wallpaper.picture(in: .sunrise) != nil)
-        #expect(wallpaper.picture(in: .sunrise)?.captureTime == nil)
+        #expect(wallpaper.picture(in: .morning)?.captureTime == morning)
+        #expect(wallpaper.picture(in: .dusk) != nil)
+        #expect(wallpaper.picture(in: .dusk)?.captureTime == nil)
     }
 
-    @Test func everyPictureIsImportedRealAndInASlotInTheFinderOrderOfTheFileNames() async throws {
+    @Test func picturesWithoutACaptureTimeAreImportedRealAndSpreadOverTheDayInTheFinderOrderOfTheFileNames(
+    ) async throws {
         let wallpaper = try #require(try await create(ChosenFiles(readable: ["10.jpg", "2.jpg", "1.jpg"])).wallpaper)
 
         #expect(wallpaper.picturesInDayOrder.allSatisfy { $0.origin == .imported && $0.isReal })
-        #expect(try wallpaper.picture(in: .dawn)?.fingerprint == fingerprint(of: "1.jpg"))
-        #expect(try wallpaper.picture(in: .sunrise)?.fingerprint == fingerprint(of: "2.jpg"))
-        #expect(try wallpaper.picture(in: .morning)?.fingerprint == fingerprint(of: "10.jpg"))
+        #expect(try wallpaper.picture(in: .sunrise)?.fingerprint == fingerprint(of: "1.jpg"))
+        #expect(try wallpaper.picture(in: .midday)?.fingerprint == fingerprint(of: "2.jpg"))
+        #expect(try wallpaper.picture(in: .night)?.fingerprint == fingerprint(of: "10.jpg"))
         #expect(wallpaper.filledSlotCount == 3)
     }
 
@@ -350,8 +351,8 @@ struct CreateWallpaperTests {
 
         let wallpaper = try #require(creation.wallpaper)
         #expect(wallpaper.filledSlotCount == 2)
-        #expect(try wallpaper.picture(in: .dawn)?.fingerprint == fingerprint(of: "1.jpg"))
-        #expect(try wallpaper.picture(in: .sunrise)?.fingerprint == fingerprint(of: "2.jpg"))
+        #expect(try wallpaper.picture(in: .sunrise)?.fingerprint == fingerprint(of: "1.jpg"))
+        #expect(try wallpaper.picture(in: .midday)?.fingerprint == fingerprint(of: "2.jpg"))
         #expect(await library.storedLibrary.storedWallpapers == [wallpaper])
         #expect(await library.storedLibrary.storedPictureContents.count == 2)
         #expect(creation.summary.addedPictureCount == 2)

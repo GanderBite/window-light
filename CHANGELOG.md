@@ -14,3 +14,4 @@ The format follows Keep a Changelog, and versions follow Semantic Versioning.
 - Window Light reads only the files you choose or drag in, and asks for no access to folders or your photo library
 - A MOV or MP4 video gives one picture, taken from the middle of the video at full size, upright and with natural colours; the video itself is never copied or changed
 - Stop a running import with Stop or the Escape key; pictures already added are kept
+- Imported pictures go to the time of day they were taken; pictures without a capture time are spread evenly over the day

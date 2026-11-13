@@ -150,23 +150,23 @@ struct WallpaperTakingPicturesTests {
         #expect(wallpaper == before)
     }
 
-    @Test func threePicturesInANewWallpaperGoToDawnSunriseAndMorningInTheOrderGiven() throws {
+    @Test func threePicturesWithoutACaptureTimeInANewWallpaperGoToSunriseMiddayAndNightInTheOrderGiven() throws {
         let newPictures = try pictures(3)
 
         let placement = try Wallpaper.automaticPlacementInNewWallpaper(of: newPictures)
 
         #expect(placement.map(\.picture) == newPictures)
-        #expect(placement.map(\.slot) == [.dawn, .sunrise, .morning])
+        #expect(placement.map(\.slot) == [.sunrise, .midday, .night])
     }
 
-    @Test func threePicturesGoToTheEmptySlotsInTheOrderOfTheDay() throws {
+    @Test func threePicturesWithoutACaptureTimeGoFarthestFromTheFilledSlotsInTheOrderOfTheDay() throws {
         let wallpaper = try wallpaper(filling: [.dawn, .morning])
         let newPictures = try pictures(3)
 
         let placement = try wallpaper.automaticPlacement(of: newPictures)
 
         #expect(placement.map(\.picture) == newPictures)
-        #expect(placement.map(\.slot) == [.sunrise, .midday, .afternoon])
+        #expect(placement.map(\.slot) == [.midday, .sunset, .night])
     }
 
     @Test func automaticPlacementNeverNamesAFilledSlotAndKeepsEveryPictureInItsSlot() throws {
