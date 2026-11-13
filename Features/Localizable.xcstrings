@@ -703,6 +703,23 @@
         }
       }
     },
+    "Stop" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zatrzymaj"
+          }
+        }
+      }
+    },
     "Sunrise" : {
       "extractionState" : "manual",
       "localizations" : {

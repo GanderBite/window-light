@@ -35,6 +35,8 @@ private func answersReading(
     return answers
 }
 
+private let interruptedRead = PictureFileError.unexpected(description: "The read was interrupted.")
+
 @discardableResult
 private func addWallpaper(filling slots: [Slot], to library: WallpaperLibraryStandIn) async throws -> Wallpaper {
     var picturesBySlot: [Slot: Domain.Picture] = [:]
@@ -60,10 +62,12 @@ private final class ChangedWallpapers {
     weak var reportingModel: PictureImportModel?
     private(set) var reported: [WallpaperID] = []
     private(set) var outcomesSeenWhenReported: [PictureImportModel.Outcome?] = []
+    private(set) var importingSeenWhenReported: [Bool?] = []
 
     func record(_ wallpaper: WallpaperID) {
         reported.append(wallpaper)
         outcomesSeenWhenReported.append(reportingModel?.outcome)
+        importingSeenWhenReported.append(reportingModel?.isImporting)
     }
 }
 
@@ -84,9 +88,10 @@ private final class ImportScene {
         answering answers: [URL: Result<PictureFile, PictureFileError>] = [:],
         library: WallpaperLibraryStandIn = WallpaperLibraryStandIn(),
         defaultWallpaperNameStem: String = "Wallpaper",
+        waitingWhenAskedFor fileWhoseReadWaits: URL? = nil,
     ) {
         self.library = library
-        let pictureFiles = PictureFilesStandIn(answering: answers)
+        let pictureFiles = PictureFilesStandIn(answering: answers, waitingWhenAskedFor: fileWhoseReadWaits)
         self.pictureFiles = pictureFiles
         let previews = PicturePreviewsStandIn()
         let changedWallpapers = ChangedWallpapers()
@@ -412,5 +417,122 @@ struct PictureImportModelTests {
         #expect(scene.model.refusal != nil)
         scene.model.dismissRefusal()
         #expect(scene.model.refusal == nil)
+    }
+
+    @Test func stoppingAfterTwoOfFourFilesWereReadKeepsTheTwoAndReportsTheWallpaperChanged() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(filling: [.dawn, .sunrise, .morning, .midday], to: library)
+        let chosen = files(4)
+        let fileBeingReadWhenStopped = chosen[2]
+        let scene = try ImportScene(
+            answering: answersReading(
+                [chosen[0], chosen[1], chosen[3]],
+                failing: [fileBeingReadWhenStopped: interruptedRead],
+            ),
+            library: library,
+            waitingWhenAskedFor: fileBeingReadWhenStopped,
+        )
+        let model = scene.model
+        let runningImport = Task { await model.importFiles(chosen, to: .wallpaper(wallpaper.id)) }
+        await scene.pictureFiles.untilTheWaitingReadHasStarted()
+        #expect(await scene.pictureFiles.askedFiles == Array(chosen.prefix(3)))
+        model.stopImporting()
+        model.stopImporting()
+        #expect(model.isImporting)
+        await scene.pictureFiles.letTheWaitingReadGoOn()
+        await runningImport.value
+        #expect(!model.isImporting)
+        let outcome = try #require(model.outcome)
+        #expect(outcome.summary.wasStopped)
+        #expect(outcome.summary.addedPictureCount == 2)
+        #expect(model.refusal == nil)
+        #expect(scene.changedWallpapers.reported == [wallpaper.id])
+        #expect(await library.storedWallpaper(wallpaper.id)?.filledSlotCount == 6)
+        #expect(await scene.pictureFiles.askedFiles == Array(chosen.prefix(3)))
+    }
+
+    @Test func aStoppedImportIsStillImportingUntilItsOutcomeIsSet() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(filling: [.dawn, .sunrise, .morning, .midday], to: library)
+        let chosen = files(2)
+        let scene = try ImportScene(
+            answering: answersReading([chosen[0]], failing: [chosen[1]: interruptedRead]),
+            library: library,
+            waitingWhenAskedFor: chosen[1],
+        )
+        let model = scene.model
+        let runningImport = Task { await model.importFiles(chosen, to: .wallpaper(wallpaper.id)) }
+        await scene.pictureFiles.untilTheWaitingReadHasStarted()
+        #expect(model.isImporting)
+        model.stopImporting()
+        #expect(model.isImporting)
+        await scene.pictureFiles.letTheWaitingReadGoOn()
+        await runningImport.value
+        #expect(scene.changedWallpapers.importingSeenWhenReported == [true])
+        #expect(scene.changedWallpapers.outcomesSeenWhenReported == [nil])
+        #expect(model.outcome?.summary.wasStopped == true)
+        #expect(!model.isImporting)
+    }
+
+    @Test func stoppingBeforeAnyFileWasReadAddsNothingAndReportsNoChange() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(filling: [.dawn, .sunrise, .morning, .midday], to: library)
+        let chosen = files(4)
+        let scene = try ImportScene(answering: answersReading(chosen), library: library)
+        let model = scene.model
+        await library.beforeAnswering(.wallpaper) { @MainActor in
+            model.stopImporting()
+        }
+        await model.importFiles(chosen, to: .wallpaper(wallpaper.id))
+        #expect(!model.isImporting)
+        let outcome = try #require(model.outcome)
+        #expect(outcome.summary.wasStopped)
+        #expect(outcome.summary.addedPictureCount == 0)
+        #expect(model.refusal == nil)
+        #expect(scene.changedWallpapers.reported.isEmpty)
+        #expect(await scene.pictureFiles.askedFiles.isEmpty)
+        #expect(await library.storedWallpaper(wallpaper.id)?.filledSlotCount == 4)
+    }
+
+    @Test func stoppingWhenNoImportRunsChangesNothing() async throws {
+        let chosen = files(2)
+        let scene = try ImportScene(answering: answersReading(chosen))
+        scene.model.stopImporting()
+        #expect(!scene.model.isImporting)
+        #expect(scene.model.outcome == nil)
+        #expect(scene.model.refusal == nil)
+        await scene.model.importFiles(chosen, to: .newWallpaper)
+        let outcome = try #require(scene.model.outcome)
+        #expect(!outcome.summary.wasStopped)
+        #expect(outcome.summary.addedPictureCount == 2)
+        scene.model.stopImporting()
+        #expect(scene.model.outcome == outcome)
+        #expect(scene.model.refusal == nil)
+    }
+
+    @Test func aNewImportStartedAfterAStoppedOneRunsToItsEnd() async throws {
+        let stoppedFiles = files(2)
+        let laterFiles = files(2, startingAt: 3)
+        let scene = try ImportScene(
+            answering: answersReading([stoppedFiles[1]] + laterFiles, failing: [stoppedFiles[0]: interruptedRead]),
+            waitingWhenAskedFor: stoppedFiles[0],
+        )
+        let model = scene.model
+        let stoppedImport = Task { await model.importFiles(stoppedFiles, to: .newWallpaper) }
+        await scene.pictureFiles.untilTheWaitingReadHasStarted()
+        model.stopImporting()
+        await scene.pictureFiles.letTheWaitingReadGoOn()
+        await stoppedImport.value
+        #expect(model.outcome?.summary.wasStopped == true)
+        #expect(model.outcome?.summary.addedPictureCount == 0)
+        model.dismissOutcome()
+        await model.importFiles(laterFiles, to: .newWallpaper)
+        let outcome = try #require(model.outcome)
+        #expect(!outcome.summary.wasStopped)
+        #expect(outcome.summary.addedPictureCount == 2)
+        #expect(!model.isImporting)
+        let stored = await scene.library.storedWallpapers
+        #expect(stored.count == 1)
+        #expect(scene.changedWallpapers.reported == stored.map(\.id))
     }
 }

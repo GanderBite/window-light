@@ -12,7 +12,7 @@ public final class PictureImportModel {
         case slot(Slot, of: WallpaperID)
     }
 
-    public enum Refusal: Equatable {
+    public enum Refusal: Equatable, Sendable {
         case tooFewFiles(fewest: Int)
         case tooManyFiles(most: Int)
         case noEmptySlot
@@ -21,6 +21,11 @@ public final class PictureImportModel {
         case slotHoldsRealPicture(Slot)
         case wallpaperGone
         case couldNotImport
+    }
+
+    private enum ImportEnding {
+        case finished(ImportSummary, resultingWallpaper: Wallpaper?)
+        case refused(Refusal)
     }
 
     public struct Outcome: Equatable {
@@ -44,6 +49,7 @@ public final class PictureImportModel {
     public private(set) var isImporting = false
     public private(set) var outcome: Outcome?
     public private(set) var refusal: Refusal?
+    private var runningImport: Task<ImportEnding, Never>?
 
     public init(
         createWallpaper: CreateWallpaper,
@@ -80,6 +86,10 @@ public final class PictureImportModel {
         await runImport(of: files, to: destination)
     }
 
+    public func stopImporting() {
+        runningImport?.cancel()
+    }
+
     public func dismissOutcome() {
         outcome = nil
     }
@@ -96,6 +106,19 @@ public final class PictureImportModel {
         isImporting = true
         defer { isImporting = false }
 
+        let stoppableImport = Task { await self.ending(ofImporting: files, to: destination) }
+        runningImport = stoppableImport
+        let ending = await stoppableImport.value
+        runningImport = nil
+        switch ending {
+        case let .finished(summary, resultingWallpaper):
+            await finish(with: summary, resultingWallpaper: resultingWallpaper)
+        case let .refused(reason):
+            refuse(reason)
+        }
+    }
+
+    private func ending(ofImporting files: [URL], to destination: Destination) async -> ImportEnding {
         switch destination {
         case .newWallpaper:
             await importIntoNewWallpaper(files)
@@ -106,48 +129,53 @@ public final class PictureImportModel {
         }
     }
 
-    private func importIntoNewWallpaper(_ files: [URL]) async {
+    private func importIntoNewWallpaper(_ files: [URL]) async -> ImportEnding {
         do throws(CreateWallpaperError) {
             let creation = try await createWallpaper.execute(files: files, defaultNameStem: defaultWallpaperNameStem)
-            await finish(with: creation.summary, resultingWallpaper: creation.wallpaper)
+            return .finished(creation.summary, resultingWallpaper: creation.wallpaper)
         } catch {
-            switch error {
-            case let .tooFewFiles(fewest): refuse(.tooFewFiles(fewest: fewest))
-            case let .tooManyFiles(most): refuse(.tooManyFiles(most: most))
-            case .defaultNameTooLong, .unavailable: refuse(.couldNotImport)
-            }
+            let refusal: Refusal =
+                switch error {
+                case let .tooFewFiles(fewest): .tooFewFiles(fewest: fewest)
+                case let .tooManyFiles(most): .tooManyFiles(most: most)
+                case .defaultNameTooLong, .unavailable: .couldNotImport
+                }
+            return .refused(refusal)
         }
     }
 
-    private func importIntoEmptySlots(_ files: [URL], of wallpaper: WallpaperID) async {
+    private func importIntoEmptySlots(_ files: [URL], of wallpaper: WallpaperID) async -> ImportEnding {
         do throws(AddPicturesError) {
             let addition = try await addPictures.execute(files: files, to: wallpaper)
-            await finish(with: addition.summary, resultingWallpaper: addition.wallpaper)
+            return .finished(addition.summary, resultingWallpaper: addition.wallpaper)
         } catch {
-            switch error {
-            case .wallpaperGone: refuse(.wallpaperGone)
-            case .noEmptySlot: refuse(.noEmptySlot)
-            case let .moreFilesThanEmptySlots(emptySlots): refuse(.moreFilesThanEmptySlots(emptySlots: emptySlots))
-            case .unavailable: refuse(.couldNotImport)
-            }
+            let refusal: Refusal =
+                switch error {
+                case .wallpaperGone: .wallpaperGone
+                case .noEmptySlot: .noEmptySlot
+                case let .moreFilesThanEmptySlots(emptySlots): .moreFilesThanEmptySlots(emptySlots: emptySlots)
+                case .unavailable: .couldNotImport
+                }
+            return .refused(refusal)
         }
     }
 
-    private func importIntoSlot(_ files: [URL], _ slot: Slot, of wallpaper: WallpaperID) async {
+    private func importIntoSlot(_ files: [URL], _ slot: Slot, of wallpaper: WallpaperID) async -> ImportEnding {
         guard files.count == 1, let file = files.first else {
-            refuse(.oneFileForASlot)
-            return
+            return .refused(.oneFileForASlot)
         }
 
         do throws(AddPictureToSlotError) {
             let addition = try await addPictureToSlot.execute(file: file, to: wallpaper, in: slot)
-            await finish(with: addition.summary, resultingWallpaper: addition.wallpaper)
+            return .finished(addition.summary, resultingWallpaper: addition.wallpaper)
         } catch {
-            switch error {
-            case .wallpaperGone: refuse(.wallpaperGone)
-            case let .slotHoldsRealPicture(slot): refuse(.slotHoldsRealPicture(slot))
-            case .unavailable: refuse(.couldNotImport)
-            }
+            let refusal: Refusal =
+                switch error {
+                case .wallpaperGone: .wallpaperGone
+                case let .slotHoldsRealPicture(slot): .slotHoldsRealPicture(slot)
+                case .unavailable: .couldNotImport
+                }
+            return .refused(refusal)
         }
     }
 
