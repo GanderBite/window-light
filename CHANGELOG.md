@@ -15,3 +15,4 @@ The format follows Keep a Changelog, and versions follow Semantic Versioning.
 - A MOV or MP4 video gives one picture, taken from the middle of the video at full size, upright and with natural colours; the video itself is never copied or changed
 - Stop a running import with Stop or the Escape key; pictures already added are kept
 - Imported pictures go to the time of day they were taken; pictures without a capture time are spread evenly over the day
+- An empty time of day shows the picture it borrows from another time of day, so the desktop always has something to show

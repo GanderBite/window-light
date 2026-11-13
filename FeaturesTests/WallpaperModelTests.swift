@@ -221,6 +221,73 @@ struct WallpaperModelTests {
         #expect(model.slots.first { $0.slot == .midday }?.preview != nil)
     }
 
+    @Test func showingAWallpaperWithDuskAndNightGivesDawnTheStandInOfDuskWithItsPreview() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(filling: [.dusk, .night], to: library)
+        let model = wallpaperModel(over: library)
+        await model.show(wallpaper.id)
+        let dawn = try #require(model.slots.first { $0.slot == .dawn })
+        let dusk = try #require(model.slots.first { $0.slot == .dusk })
+        #expect(!dawn.isFilled)
+        let standIn = try #require(dawn.standIn)
+        #expect(standIn.slot == .dusk)
+        let duskPreview = try #require(dusk.preview)
+        #expect(standIn.preview === duskPreview)
+    }
+
+    @Test func everyEmptySlotHasTheStandInTheWallpaperNamesAndEveryFilledSlotHasNone() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(filling: [.sunrise, .afternoon, .night], to: library)
+        let model = wallpaperModel(over: library)
+        await model.show(wallpaper.id)
+        try #require(model.slots.count == Slot.allCases.count)
+        for state in model.slots {
+            if state.isFilled {
+                #expect(state.standIn == nil)
+            } else {
+                let standIn = try #require(state.standIn)
+                #expect(standIn.slot == wallpaper.standIn(for: state.slot)?.slot)
+                #expect(standIn.preview != nil)
+            }
+        }
+    }
+
+    @Test func anEmptySlotWithAStandInStaysEmptyAndCanStillTakeAFile() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await addWallpaper(filling: [.dusk, .night], to: library)
+        let model = wallpaperModel(over: library)
+        await model.show(wallpaper.id)
+        let dawn = try #require(model.slots.first { $0.slot == .dawn })
+        try #require(dawn.standIn != nil)
+        #expect(!dawn.isFilled)
+        #expect(dawn.canTakeAFile)
+        #expect(model.hasEmptySlot)
+    }
+
+    @Test func reloadingAfterAPictureWasAddedToDuskGivesDawnTheStandInOfDuskAndDuskNone() async throws {
+        let library = WallpaperLibraryStandIn()
+        var wallpaper = try await addWallpaper(filling: [.night], to: library)
+        let model = wallpaperModel(over: library)
+        await model.show(wallpaper.id)
+        try #require(model.phase == .open)
+        try wallpaper.place(picture(), in: .dusk)
+        try await library.remove(wallpaper.id)
+        try await store(wallpaper, in: library)
+        let phasesWhileReloading = SeenWhileWaiting<WallpaperModel.Phase>()
+        await library.beforeAnswering(.wallpaper) { @MainActor in
+            phasesWhileReloading.values.append(model.phase)
+        }
+        await library.beforeAnswering(.picturePreviews) { @MainActor in
+            phasesWhileReloading.values.append(model.phase)
+        }
+        await model.reload()
+        #expect(phasesWhileReloading.values == [.open, .open])
+        #expect(model.phase == .open)
+        #expect(model.slots.first { $0.slot == .dawn }?.standIn?.slot == .dusk)
+        let dusk = try #require(model.slots.first { $0.slot == .dusk })
+        #expect(dusk.standIn == nil)
+    }
+
     @Test func reloadingWithNothingShownAsksTheLibraryNothing() async {
         let library = WallpaperLibraryStandIn()
         let model = wallpaperModel(over: library)
