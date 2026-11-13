@@ -24,6 +24,17 @@ enum ArrangingWording {
         }
     }
 
+    static func undoActionName(of step: WallpaperModel.Step, from bundle: Bundle) -> String? {
+        switch step {
+        case .moved: WallpaperText.pictureMove.text(from: bundle)
+        case .swapped: WallpaperText.pictureSwap.text(from: bundle)
+        case .removed: WallpaperText.pictureRemoval.text(from: bundle)
+        case .placedByTimeAgain: WallpaperText.placingByTime.text(from: bundle)
+        case .picturesAdded: WallpaperText.pictureAddition.text(from: bundle)
+        case .undone, .redone: nil
+        }
+    }
+
     private static func name(of slot: Slot, from bundle: Bundle) -> String {
         WallpaperText.name(of: slot).text(from: bundle)
     }

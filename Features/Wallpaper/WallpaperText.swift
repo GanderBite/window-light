@@ -43,6 +43,11 @@ enum WallpaperText: String, CaseIterable {
     case placedByTimeAgain = "The pictures were placed by time again"
     case stepUndone = "The last step was undone"
     case stepRedone = "The step was done again"
+    case pictureMove = "Picture Move"
+    case pictureSwap = "Picture Swap"
+    case pictureRemoval = "Picture Removal"
+    case placingByTime = "Placing by Time"
+    case pictureAddition = "Picture Addition"
 
     static func name(of slot: Slot) -> Self {
         switch slot {

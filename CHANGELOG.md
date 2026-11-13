@@ -19,3 +19,4 @@ The format follows Keep a Changelog, and versions follow Semantic Versioning.
 - Move a picture to another time of day or swap two pictures, from the menu next to the picture
 - Remove a picture from a wallpaper; the file it was imported from is never touched
 - Place by Time Again in the toolbar arranges a wallpaper's pictures by the time they were taken once more, after asking
+- Undo and redo every arranging step with Edit → Undo (⌘Z) and Redo (⇧⌘Z), for as long as the wallpaper stays open; a removed picture comes back with undo

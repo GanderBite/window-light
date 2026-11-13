@@ -5,6 +5,7 @@ import SwiftUI
 
 public struct WallpaperScreen: View {
     private let model: WallpaperModel
+    @Environment(\.undoManager) private var undoManager
     private let addPictures: ((WallpaperID) -> Void)?
     private let addPicture: ((Slot, WallpaperID) -> Void)?
     private let addDroppedFiles: (([URL], WallpaperID) -> Void)?
@@ -76,6 +77,9 @@ public struct WallpaperScreen: View {
             }
             .onChange(of: model.lastStep) { _, newStep in
                 announce(newStep)
+            }
+            .onChange(of: model.newStepCount) { oldCount, newCount in
+                ArrangingUndo(model: model).stepCountChanged(from: oldCount, to: newCount, in: undoManager)
             }
     }
 
