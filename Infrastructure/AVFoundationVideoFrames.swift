@@ -86,6 +86,8 @@ public struct AVFoundationVideoFrames: PictureFiles {
         let frames = AVAssetImageGenerator(asset: video)
         frames.requestedTimeToleranceBefore = .zero
         frames.requestedTimeToleranceAfter = .zero
+        frames.appliesPreferredTrackTransform = true
+        frames.dynamicRangePolicy = .forceSDR
         return frames
     }
 
