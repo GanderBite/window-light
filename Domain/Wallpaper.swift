@@ -35,6 +35,14 @@ public struct Wallpaper: Identifiable, Equatable, Sendable {
         pictures[slot]
     }
 
+    public var arrangement: Arrangement {
+        Arrangement(picturesBySlot: pictures)
+    }
+
+    public mutating func rearrange(as arrangement: Arrangement) {
+        pictures = arrangement.picturesBySlot
+    }
+
     public func standIn(for slot: Slot) -> PlacedPicture? {
         guard pictures[slot] == nil else { return nil }
 
