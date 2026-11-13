@@ -86,7 +86,11 @@ private func addWallpaper(
 
 @MainActor
 private func wallpaperModel(over library: WallpaperLibraryStandIn) -> WallpaperModel {
-    WallpaperModel(openWallpaper: OpenWallpaper(library: library))
+    WallpaperModel(
+        openWallpaper: OpenWallpaper(library: library),
+        arrangePictures: ArrangePictures(library: library),
+        finishArranging: FinishArranging(library: library),
+    )
 }
 
 @MainActor

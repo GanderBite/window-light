@@ -85,9 +85,18 @@ private func screen(of model: WallpaperModel) -> WallpaperScreen {
 }
 
 @MainActor
+private func wallpaperModel(over library: WallpaperLibraryStandIn) -> WallpaperModel {
+    WallpaperModel(
+        openWallpaper: OpenWallpaper(library: library),
+        arrangePictures: ArrangePictures(library: library),
+        finishArranging: FinishArranging(library: library),
+    )
+}
+
+@MainActor
 struct WallpaperScreenTests {
     @Test func rendersWithNothingOpen() throws {
-        let model = WallpaperModel(openWallpaper: OpenWallpaper(library: WallpaperLibraryStandIn()))
+        let model = wallpaperModel(over: WallpaperLibraryStandIn())
         try #require(model.phase == .nothingOpen)
         let size = try renderedSize(of: screen(of: model))
         #expect(size.width > 0)
@@ -97,7 +106,7 @@ struct WallpaperScreenTests {
     @Test func rendersAWallpaperThatIsStillOpening() async throws {
         let library = WallpaperLibraryStandIn()
         let wallpaper = try await addWallpaper(picturesBySlot: [.dawn: picture(madeWith: .imported)], to: library)
-        let model = WallpaperModel(openWallpaper: OpenWallpaper(library: library))
+        let model = wallpaperModel(over: library)
         let sizeWhileOpening = SizeSeenWhileOpening()
         await library.beforeAnswering(.wallpaper) { @MainActor in
             sizeWhileOpening.phase = model.phase
@@ -116,7 +125,7 @@ struct WallpaperScreenTests {
             picturesBySlot: [.dawn: picture(madeWith: .imported), .dusk: picture(madeWith: .madeWithAI)],
             to: library,
         )
-        let model = WallpaperModel(openWallpaper: OpenWallpaper(library: library))
+        let model = wallpaperModel(over: library)
         await model.show(wallpaper.id)
         try #require(model.phase == .open)
         let size = try renderedSize(of: screen(of: model), height: 600)
@@ -131,7 +140,7 @@ struct WallpaperScreenTests {
             picturesBySlot: [.morning: picture(madeWith: .imported), .dusk: picture(madeWith: .imported)],
             to: library,
         )
-        let model = WallpaperModel(openWallpaper: OpenWallpaper(library: library))
+        let model = wallpaperModel(over: library)
         await model.show(wallpaper.id)
         try #require(model.phase == .open)
         let borrowingSlots = model.slots.filter { !$0.isFilled && $0.standIn?.preview != nil }
@@ -142,7 +151,7 @@ struct WallpaperScreenTests {
     }
 
     @Test func rendersAWallpaperThatIsGone() async throws {
-        let model = WallpaperModel(openWallpaper: OpenWallpaper(library: WallpaperLibraryStandIn()))
+        let model = wallpaperModel(over: WallpaperLibraryStandIn())
         await model.show(WallpaperID(UUID()))
         try #require(model.phase == .gone)
         let size = try renderedSize(of: screen(of: model))
@@ -153,7 +162,7 @@ struct WallpaperScreenTests {
     @Test func rendersAnUnavailableWallpaper() async throws {
         let library = WallpaperLibraryStandIn()
         await library.fail(.wallpaper, with: .unavailable)
-        let model = WallpaperModel(openWallpaper: OpenWallpaper(library: library))
+        let model = wallpaperModel(over: library)
         await model.show(WallpaperID(UUID()))
         try #require(model.phase == .unavailable)
         let size = try renderedSize(of: screen(of: model))
