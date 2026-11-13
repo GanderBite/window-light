@@ -18,8 +18,17 @@ public struct AVFoundationVideoFrames: PictureFiles {
     private static let theReadWasStopped = PictureFileError.unexpected(
         description: "The read of the video was stopped before a frame was taken",
     )
+    private static let emptyContainerTime = Date(timeIntervalSince1970: -2_082_844_800)
 
-    public init() {}
+    private let timeZoneOfTheMac: TimeZone
+
+    public init() {
+        self.init(timeZoneOfTheMac: .autoupdatingCurrent)
+    }
+
+    init(timeZoneOfTheMac: TimeZone) {
+        self.timeZoneOfTheMac = timeZoneOfTheMac
+    }
 
     @concurrent
     public func picture(in file: URL) async throws(PictureFileError) -> PictureFile {
@@ -32,15 +41,17 @@ public struct AVFoundationVideoFrames: PictureFiles {
 
         try Self.confirmThatTheFileOpensForReading(file)
         try Self.stopWhenTheReadIsCancelled()
-        let frame = try await Self.frameShownAtTheMiddle(of: AVURLAsset(url: file))
+        let video = AVURLAsset(url: file)
+        let frame = try await Self.frameShownAtTheMiddle(of: video)
+        let captureTime = await captureTime(of: frame, in: video)
         try Self.stopWhenTheReadIsCancelled()
-        let content = try Self.pngContent(of: frame)
+        let content = try Self.pngContent(of: frame.image)
         try Self.stopWhenTheReadIsCancelled()
         return try PictureFile(
             content: content,
             fingerprint: Self.fingerprint(of: content),
-            captureTime: nil,
-            pixelSize: Self.pixelSize(of: frame),
+            captureTime: captureTime,
+            pixelSize: Self.pixelSize(of: frame.image),
         )
     }
 
@@ -68,7 +79,33 @@ public struct AVFoundationVideoFrames: PictureFiles {
         }
     }
 
-    private static func frameShownAtTheMiddle(of video: AVURLAsset) async throws(PictureFileError) -> CGImage {
+    private func captureTime(of frame: VideoFrame, in video: AVURLAsset) async -> CaptureTime? {
+        do {
+            guard let recordingStart = try await recordingStart(of: video) else {
+                return nil
+            }
+
+            return try recordingStart.captureTimeOfFrame(secondsIntoTheRecording: frame.wholeSecondsIntoTheVideo)
+        } catch {
+            return nil
+        }
+    }
+
+    private func recordingStart(of video: AVURLAsset) async throws -> CaptureTime? {
+        let (writtenTimes, containerCreationTime) = try await video.load(.metadata, .creationDate)
+        for writtenTime in writtenTimes where writtenTime.commonKey == .commonKeyCreationDate {
+            if let clock = try await DateComponents(clockTimeWrittenWithItsOwnOffset: writtenTime.load(.stringValue)) {
+                return try clock.captureTime()
+            }
+        }
+        guard let moment = try await containerCreationTime?.load(.dateValue), moment != Self.emptyContainerTime else {
+            return nil
+        }
+
+        return try Calendar(identifier: .gregorian).dateComponents(in: timeZoneOfTheMac, from: moment).captureTime()
+    }
+
+    private static func frameShownAtTheMiddle(of video: AVURLAsset) async throws(PictureFileError) -> VideoFrame {
         let layout = try await layout(of: video)
         if let refusal = refusal(of: layout.contents) {
             throw refusal
@@ -94,7 +131,7 @@ public struct AVFoundationVideoFrames: PictureFiles {
     fileprivate static func frame(
         shownAt point: CMTime,
         takenFrom frames: AVAssetImageGenerator,
-    ) async throws(PictureFileError) -> CGImage? {
+    ) async throws(PictureFileError) -> VideoFrame? {
         try stopWhenTheReadIsCancelled()
         let stopOfTheFrameBeingTaken = StopOfFrameTaking(by: frames)
         let frame = await withTaskCancellationHandler { () -> CGImage? in
@@ -107,7 +144,7 @@ public struct AVFoundationVideoFrames: PictureFiles {
             stopOfTheFrameBeingTaken.happen()
         }
         try stopWhenTheReadIsCancelled()
-        return frame
+        return frame.map { VideoFrame(image: $0, pointInTheVideo: point) }
     }
 
     private static func layout(of video: AVURLAsset) async throws(PictureFileError) -> VideoLayout {
@@ -254,7 +291,7 @@ private struct VideoTimeline {
 
 private struct SearchForAReadableFrame {
     private struct ReadableFrame {
-        let image: CGImage
+        let frame: VideoFrame
         let framesFromTheMiddle: Int
         let side: SideOfTheMiddle
     }
@@ -262,9 +299,9 @@ private struct SearchForAReadableFrame {
     let frames: AVAssetImageGenerator
     let timeline: VideoTimeline
 
-    func frameNearestToTheMiddle() async throws(PictureFileError) -> CGImage? {
+    func frameNearestToTheMiddle() async throws(PictureFileError) -> VideoFrame? {
         if let frameAtTheMiddle = try await frame(0, framesFromTheMiddleOnThe: .earlier) {
-            return frameAtTheMiddle.image
+            return frameAtTheMiddle.frame
         }
 
         let farthestDistance = SideOfTheMiddle.allCases.map(timeline.framesBetweenTheMiddleAndTheEdge).max() ?? 0
@@ -279,7 +316,7 @@ private struct SearchForAReadableFrame {
                 }
             }
             if let nearest = nearestOnEachSide.min(by: { $0.framesFromTheMiddle < $1.framesFromTheMiddle }) {
-                return nearest.image
+                return nearest.frame
             }
             unreadableDistance = distance
             distance *= 2
@@ -310,7 +347,42 @@ private struct SearchForAReadableFrame {
     ) async throws(PictureFileError) -> ReadableFrame? {
         let point = timeline.point(distance, framesFromTheMiddleOnThe: side)
         return try await AVFoundationVideoFrames.frame(shownAt: point, takenFrom: frames)
-            .map { ReadableFrame(image: $0, framesFromTheMiddle: distance, side: side) }
+            .map { ReadableFrame(frame: $0, framesFromTheMiddle: distance, side: side) }
+    }
+}
+
+private struct VideoFrame {
+    let image: CGImage
+    let pointInTheVideo: CMTime
+
+    var wholeSecondsIntoTheVideo: Int {
+        Int(CMTimeConvertScale(pointInTheVideo, timescale: 1, method: .roundTowardZero).value)
+    }
+}
+
+private extension DateComponents {
+    init?(clockTimeWrittenWithItsOwnOffset written: String?) {
+        let writtenForm = #/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?[+-]\d{2}(?::?\d{2})?/#
+        guard let parts = written?.wholeMatch(of: writtenForm)?.output else {
+            return nil
+        }
+
+        self.init(
+            year: Int(parts.1),
+            month: Int(parts.2),
+            day: Int(parts.3),
+            hour: Int(parts.4),
+            minute: Int(parts.5),
+            second: Int(parts.6),
+        )
+    }
+
+    func captureTime() throws(CaptureTimeError) -> CaptureTime? {
+        guard let year, let month, let day, let hour, let minute, let second else {
+            return nil
+        }
+
+        return try CaptureTime(year: year, month: month, day: day, hour: hour, minute: minute, second: second)
     }
 }
 

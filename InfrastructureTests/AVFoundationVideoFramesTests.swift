@@ -93,6 +93,19 @@ private func decodedColourSpace(of content: Data) throws -> CGColorSpace {
     try #require(decodedByImageIO(content).colorSpace)
 }
 
+private let twentyMinutes = 1200
+private let thirtySeconds = 30
+private let fortySeconds = 40
+
+private func captureTime(of file: URL, onAMacIn timeZoneIdentifier: String) async throws -> CaptureTime? {
+    let timeZone = try #require(TimeZone(identifier: timeZoneIdentifier))
+    return try await AVFoundationVideoFrames(timeZoneOfTheMac: timeZone).picture(in: file).captureTime
+}
+
+private func moment(_ writtenInUTC: String) throws -> Date {
+    try Date(writtenInUTC, strategy: .iso8601)
+}
+
 private func largestStepBetween(_ first: [UInt8], _ second: [UInt8]) -> Int {
     zip(first, second).map { abs(Int($0) - Int($1)) }.max() ?? .max
 }
@@ -460,6 +473,154 @@ struct AVFoundationVideoFramesTests {
                 TestVideo.standardRGBValues(of: decoded),
                 TestVideo.standardRGBValues(of: frameShownAtTheMiddle),
             ) <= largestRoundingStep)
+        }
+    }
+
+    @Test(.enabledWhenThisMacEncodesVideo)
+    func aTwentyMinuteVideoWrittenWithItsOwnOffsetGivesTheWrittenClockTimePlusTenMinutesInEveryTimeZone(
+    ) async throws {
+        try await withVideoFolder { folder in
+            let file = try await TestVideo(
+                frameCount: 5,
+                lengthInSeconds: twentyMinutes,
+                recordingTime: .writtenWithItsOwnOffset("2026-06-01T18:00:00+0200"),
+            ).written(into: folder.url)
+
+            for timeZone in ["UTC", "Europe/Warsaw", "America/Los_Angeles", "Asia/Tokyo"] {
+                #expect(
+                    try await captureTime(of: file, onAMacIn: timeZone)
+                        == CaptureTime(year: 2026, month: 6, day: 1, hour: 18, minute: 10, second: 0),
+                    "on a Mac in \(timeZone)",
+                )
+            }
+        }
+    }
+
+    @Test(.enabledWhenThisMacEncodesVideo)
+    func aThirtySecondVideoThatStartedTenSecondsBeforeMidnightGivesFiveSecondsAfterMidnightOnTheNextDay() async throws {
+        try await withVideoFolder { folder in
+            let file = try await TestVideo(
+                frameCount: 6,
+                lengthInSeconds: thirtySeconds,
+                recordingTime: .writtenWithItsOwnOffset("2026-06-01T23:59:50+0200"),
+            ).written(into: folder.url)
+
+            #expect(
+                try await captureTime(of: file, onAMacIn: "UTC")
+                    == CaptureTime(year: 2026, month: 6, day: 2, hour: 0, minute: 0, second: 5),
+            )
+        }
+    }
+
+    @Test(.enabledWhenThisMacEncodesVideo)
+    func aRecordingTimeWrittenOnlyAsAMomentGivesItsClockTimeInTheTimeZoneOfTheMacPlusHalfTheLength() async throws {
+        try await withVideoFolder { folder in
+            let file = try await TestVideo(
+                frameCount: 5,
+                lengthInSeconds: twentyMinutes,
+                recordingTime: .writtenAsAMoment(moment("2026-06-01T16:00:00Z")),
+            ).written(into: folder.url)
+
+            #expect(
+                try await captureTime(of: file, onAMacIn: "Europe/Warsaw")
+                    == CaptureTime(year: 2026, month: 6, day: 1, hour: 18, minute: 10, second: 0),
+            )
+            #expect(
+                try await captureTime(of: file, onAMacIn: "America/New_York")
+                    == CaptureTime(year: 2026, month: 6, day: 1, hour: 12, minute: 10, second: 0),
+            )
+        }
+    }
+
+    @Test(.enabledWhenThisMacEncodesVideo)
+    func aVideoCarryingBothFormsGivesTheCaptureTimeFromTheOneWithItsOwnOffset() async throws {
+        try await withVideoFolder { folder in
+            let file = try await TestVideo(
+                frameCount: 5,
+                lengthInSeconds: twentyMinutes,
+                recordingTime: .writtenBothWays(
+                    withItsOwnOffset: "2026-06-01T18:00:00+0200",
+                    asAMoment: moment("2026-03-01T03:00:00Z"),
+                ),
+            ).written(into: folder.url)
+
+            for timeZone in ["UTC", "Europe/Warsaw"] {
+                #expect(
+                    try await captureTime(of: file, onAMacIn: timeZone)
+                        == CaptureTime(year: 2026, month: 6, day: 1, hour: 18, minute: 10, second: 0),
+                    "on a Mac in \(timeZone)",
+                )
+            }
+        }
+    }
+
+    @Test(.enabledWhenThisMacEncodesVideo)
+    func aVideoCarryingNoRecordingTimeGivesNoCaptureTimeAlthoughTheFileHasACreationDate() async throws {
+        try await withVideoFolder { folder in
+            let file = try await TestVideo(recordingTime: .notCarried).written(into: folder.url)
+
+            let attributes = try FileManager.default.attributesOfItem(atPath: file.path)
+            #expect(attributes[.creationDate] is Date)
+            #expect(try await captureTime(of: file, onAMacIn: "UTC") == nil)
+        }
+    }
+
+    @Test(.enabledWhenThisMacEncodesVideo)
+    func aVideoWhoseContainerCreationTimeIsZeroGivesNoCaptureTime() async throws {
+        try await withVideoFolder { folder in
+            let file = try await TestVideo(recordingTime: .writtenAsAMoment(TestVideo.containerClockStart))
+                .written(into: folder.url)
+
+            #expect(try TestVideo.containerCreationTime(of: file) == 0)
+            #expect(try await captureTime(of: file, onAMacIn: "UTC") == nil)
+        }
+    }
+
+    @Test(.enabledWhenThisMacEncodesVideo)
+    func aVideoWhoseMiddleCannotBeReadGetsTheCaptureTimeOfThePointItsFrameWasTakenAt() async throws {
+        try await withVideoFolder { folder in
+            let file = try await TestVideo(
+                frameCount: 20,
+                lengthInSeconds: fortySeconds,
+                recordingTime: .writtenWithItsOwnOffset("2026-06-01T18:00:00+0200"),
+                damage: .cutOffSoThatTheLastWholeFrameIs(6),
+            ).written(into: folder.url)
+
+            let picture = try await AVFoundationVideoFrames(timeZoneOfTheMac: .gmt).picture(in: file)
+
+            #expect(try frameNumber(shownIn: picture) == 6)
+            #expect(try picture.captureTime == CaptureTime(
+                year: 2026,
+                month: 6,
+                day: 1,
+                hour: 18,
+                minute: 0,
+                second: 12,
+            ))
+        }
+    }
+
+    @Test(
+        .enabledWhenThisMacEncodesVideo,
+        arguments: [
+            "2026-02-30T18:00:00+0200",
+            "2026-06-01T25:00:00+0200",
+            "yesterday evening",
+            "9999-12-31T23:59:59+0000",
+        ],
+    )
+    func aVideoWithARecordingTimeThatCannotBeUsedStillGivesItsFrameWithoutACaptureTime(written: String) async throws {
+        try await withVideoFolder { folder in
+            let file = try await TestVideo(
+                frameCount: 6,
+                lengthInSeconds: thirtySeconds,
+                recordingTime: .writtenWithItsOwnOffset(written),
+            ).written(into: folder.url)
+
+            let picture = try await AVFoundationVideoFrames(timeZoneOfTheMac: .gmt).picture(in: file)
+
+            #expect(try frameNumber(shownIn: picture) == 3)
+            #expect(picture.captureTime == nil)
         }
     }
 }
