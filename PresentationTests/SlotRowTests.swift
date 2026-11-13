@@ -39,22 +39,36 @@ private func makePicture() -> CGImage {
 struct SlotRowTests {
     private func row(
         name: String = "Morning",
-        picture: CGImage?,
+        thumbnail: SlotRow.Thumbnail,
         add: (() -> Void)? = nil,
     ) -> SlotRow {
-        SlotRow(slotName: name, picture: picture, caption: "Added today", addTitle: "Add picture", add: add)
+        SlotRow(slotName: name, thumbnail: thumbnail, caption: "Added today", addTitle: "Add picture", add: add)
     }
 
-    @Test func rendersWithAndWithoutAPictureAtTheSameHeightOfAtLeast44Points() throws {
-        let filled = try #require(renderedSize(of: row(picture: makePicture()), proposedWidth: 300))
-        let empty = try #require(renderedSize(of: row(picture: nil), proposedWidth: 300))
-        #expect(filled.height == empty.height)
+    @Test func rendersEachKindOfThumbnailAtTheSameHeightOfAtLeast44Points() throws {
+        let filled = try #require(renderedSize(of: row(thumbnail: .picture(makePicture())), proposedWidth: 300))
+        let borrowed = try #require(renderedSize(
+            of: row(thumbnail: .borrowedPicture(makePicture())),
+            proposedWidth: 300,
+        ))
+        let empty = try #require(renderedSize(of: row(thumbnail: .empty), proposedWidth: 300))
+        #expect(filled == empty)
+        #expect(borrowed == empty)
         #expect(empty.height >= 44)
+    }
+
+    @Test func staysInsideTheWidthItIsGivenWithABorrowedPicture() throws {
+        let size = try #require(renderedSize(
+            of: row(name: String(repeating: "N", count: 200), thumbnail: .borrowedPicture(makePicture()), add: {}),
+            proposedWidth: 300,
+        ))
+        #expect(size.width <= 300)
+        #expect(size.width > 0)
     }
 
     @Test func staysInsideTheWidthItIsGivenWithAVeryLongName() throws {
         let size = try #require(renderedSize(
-            of: row(name: String(repeating: "N", count: 200), picture: makePicture(), add: {}),
+            of: row(name: String(repeating: "N", count: 200), thumbnail: .picture(makePicture()), add: {}),
             proposedWidth: 300,
         ))
         #expect(size.width <= 300)
@@ -62,8 +76,8 @@ struct SlotRowTests {
     }
 
     @Test func rendersWithAnAddClosureAndWithoutOneNoWiderThanWithIt() throws {
-        let withAdd = try #require(renderedSize(of: row(picture: nil, add: {}), proposedWidth: 300))
-        let withoutAdd = try #require(renderedSize(of: row(picture: nil), proposedWidth: 300))
+        let withAdd = try #require(renderedSize(of: row(thumbnail: .empty, add: {}), proposedWidth: 300))
+        let withoutAdd = try #require(renderedSize(of: row(thumbnail: .empty), proposedWidth: 300))
         #expect(withAdd.width > 0)
         #expect(withoutAdd.width <= withAdd.width)
     }
