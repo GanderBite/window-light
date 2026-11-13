@@ -132,9 +132,10 @@ public struct WallpaperScreen: View {
                 }
             }
             .padding([.horizontal, .top])
-            List(model.slots) { state in
+            List(model.slots, selection: selectedSlot) { state in
                 row(of: state)
             }
+            .focusedValue(\.slotListIsFocused, true)
         }
     }
 
@@ -294,6 +295,13 @@ private extension WallpaperScreen {
 
     func name(of slot: Slot) -> String {
         WallpaperText.name(of: slot).inTheAppLanguage
+    }
+
+    var selectedSlot: Binding<Slot?> {
+        Binding(
+            get: { model.selectedSlot },
+            set: { slot in model.select(slot) },
+        )
     }
 
     var isAskingToPlaceByTimeAgain: Binding<Bool> {

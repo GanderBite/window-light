@@ -480,6 +480,46 @@ extension WallpaperModelArrangingTests {
     }
 }
 
+extension WallpaperModelArrangingTests {
+    @Test func selectingASlotSelectsItAndShowingAnotherWallpaperClearsTheSelection() async throws {
+        let arranging = Arranging()
+        try await arranging.open([.dawn: arranging.picture(), .dusk: arranging.picture()])
+        let second = try await arranging.store([.night: arranging.picture()], named: "Winter")
+        arranging.model.select(.morning)
+        #expect(arranging.model.selectedSlot == .morning)
+        await arranging.model.show(second.id)
+        #expect(arranging.model.selectedSlot == nil)
+    }
+
+    @Test func theSlotsEarlierAndLaterThanTheSelectedOneFollowTheDayWithoutWrappingAround() {
+        let model = Arranging().model
+        #expect(model.slotEarlierThanSelected == nil && model.slotLaterThanSelected == nil)
+        model.select(.morning)
+        #expect(model.slotEarlierThanSelected == .sunrise && model.slotLaterThanSelected == .midday)
+        model.select(.dawn)
+        #expect(model.slotEarlierThanSelected == nil && model.slotLaterThanSelected == .sunrise)
+        model.select(.night)
+        #expect(model.slotEarlierThanSelected == .dusk && model.slotLaterThanSelected == nil)
+        model.select(nil)
+        #expect(model.slotEarlierThanSelected == nil && model.slotLaterThanSelected == nil)
+    }
+
+    @Test func theSelectionFollowsAMovedPictureToItsDestinationAndStaysWhenTheMoveFails() async throws {
+        let arranging = Arranging()
+        try await arranging.open([.dawn: arranging.picture(), .dusk: arranging.picture()])
+        let model = arranging.model
+        model.select(.dawn)
+        await model.movePicture(from: .dawn, to: .sunrise)
+        #expect(model.selectedSlot == .sunrise)
+        await model.movePicture(from: .sunrise, to: .dusk)
+        #expect(model.selectedSlot == .dusk)
+        await arranging.library.fail(.keep, with: .unavailable)
+        await model.movePicture(from: .dusk, to: .night)
+        try #require(model.arrangingFailure == .couldNotSave)
+        #expect(model.selectedSlot == .dusk)
+    }
+}
+
 @MainActor
 private final class SentLater {
     private var actions: [Task<Void, Never>]?

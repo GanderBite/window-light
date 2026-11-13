@@ -29,6 +29,7 @@ public final class WallpaperModel {
     public private(set) var lastStep: Step?
     public private(set) var newStepCount = 0
     public private(set) var arrangingFailure: ArrangingFailure?
+    public private(set) var selectedSlot: Slot?
 
     public init(
         openWallpaper: OpenWallpaper,
@@ -73,9 +74,11 @@ public final class WallpaperModel {
     }
 
     public func movePicture(from source: Slot, to destination: Slot) async {
-        await makeStep(.movePicture(from: source, to: destination)) { wallpaperBefore in
-            .movingPicture(from: source, to: destination, in: wallpaperBefore)
-        }
+        await makeStep(
+            .movePicture(from: source, to: destination),
+            describedBy: { wallpaperBefore in .movingPicture(from: source, to: destination, in: wallpaperBefore) },
+            afterwards: { self.letTheSelectionFollowThePicture(from: source, to: destination) },
+        )
     }
 
     public func removePicture(from slot: Slot) async {
@@ -146,6 +149,7 @@ public final class WallpaperModel {
     private func makeStep(
         _ change: ArrangementChange,
         describedBy step: @escaping @MainActor (Wallpaper) -> Step,
+        afterwards followUp: @escaping @MainActor () -> Void = {},
     ) async {
         let changedWallpaper = await actionsInOrder.carryOut { () -> WallpaperID? in
             guard let wallpaperBefore = self.openWallpaperState, var history = self.history,
@@ -157,6 +161,7 @@ public final class WallpaperModel {
             self.history = history
             self.lastStep = step(wallpaperBefore)
             self.newStepCount += 1
+            followUp()
             return arranged.id
         }
         await tellThat(changedWallpaper)
@@ -281,6 +286,7 @@ public final class WallpaperModel {
         newStepCount = 0
         isAskingToPlaceByTimeAgain = false
         arrangingFailure = nil
+        selectedSlot = nil
     }
 
     @concurrent
@@ -299,6 +305,18 @@ public final class WallpaperModel {
 }
 
 public extension WallpaperModel {
+    func select(_ slot: Slot?) {
+        selectedSlot = slot
+    }
+
+    var slotEarlierThanSelected: Slot? {
+        selectedSlot.flatMap { selected in Slot.allCases.last { $0 < selected } }
+    }
+
+    var slotLaterThanSelected: Slot? {
+        selectedSlot.flatMap { selected in Slot.allCases.first { $0 > selected } }
+    }
+
     enum Step: Equatable {
         case moved(from: Slot, to: Slot)
         case swapped(Slot, with: Slot)
@@ -327,6 +345,14 @@ public extension WallpaperModel {
         public var id: Slot {
             slot
         }
+    }
+}
+
+private extension WallpaperModel {
+    func letTheSelectionFollowThePicture(from source: Slot, to destination: Slot) {
+        guard selectedSlot == source else { return }
+
+        selectedSlot = destination
     }
 }
 
