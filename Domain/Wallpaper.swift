@@ -37,6 +37,17 @@ public struct Wallpaper: Identifiable, Equatable, Sendable {
         pictures[slot]
     }
 
+    public func standIn(for slot: Slot) -> PlacedPicture? {
+        guard pictures[slot] == nil else { return nil }
+
+        if let mirror = slot.mirror, let mirrorPicture = pictures[mirror] {
+            return PlacedPicture(picture: mirrorPicture, slot: mirror)
+        }
+        return pictures
+            .min { Self.lends($0.key, ratherThan: $1.key, to: slot) }
+            .map { PlacedPicture(picture: $0.value, slot: $0.key) }
+    }
+
     public var picturesInDayOrder: [Picture] {
         Slot.allCases.compactMap { pictures[$0] }
     }
@@ -101,6 +112,25 @@ public struct Wallpaper: Identifiable, Equatable, Sendable {
 
     private func holdsPicture(identicalTo fingerprint: ContentFingerprint, outside slot: Slot) -> Bool {
         pictures.contains { heldSlot, held in heldSlot != slot && held.fingerprint == fingerprint }
+    }
+
+    private static func lends(_ candidate: Slot, ratherThan other: Slot, to emptySlot: Slot) -> Bool {
+        let candidateSteps = emptySlot.steps(to: candidate)
+        let otherSteps = emptySlot.steps(to: other)
+        guard candidateSteps == otherSteps else { return candidateSteps < otherSteps }
+
+        let candidateStepsToMidday = candidate.steps(to: .midday)
+        let otherStepsToMidday = other.steps(to: .midday)
+        guard candidateStepsToMidday == otherStepsToMidday else {
+            return candidateStepsToMidday < otherStepsToMidday
+        }
+
+        return comes(candidate, before: emptySlot)
+    }
+
+    private static func comes(_ candidate: Slot, before emptySlot: Slot) -> Bool {
+        let slotJustBefore = Slot.allCases.last { $0 < emptySlot } ?? .night
+        return slotJustBefore.steps(to: candidate) < emptySlot.steps(to: candidate)
     }
 
     private static func checkEmptySlots(_ emptySlots: [Slot], canTake fileCount: Int) throws(WallpaperError) {
