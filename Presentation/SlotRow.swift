@@ -8,6 +8,38 @@ public struct SlotRow: View {
         case empty
     }
 
+    public struct PictureActions {
+        public struct Destination {
+            let title: String
+            let move: () -> Void
+
+            public init(title: String, move: @escaping () -> Void) {
+                self.title = title
+                self.move = move
+            }
+        }
+
+        let menuTitle: String
+        let moveTitle: String
+        let destinations: [Destination]
+        let removeTitle: String
+        let remove: () -> Void
+
+        public init(
+            menuTitle: String,
+            moveTitle: String,
+            destinations: [Destination],
+            removeTitle: String,
+            remove: @escaping () -> Void,
+        ) {
+            self.menuTitle = menuTitle
+            self.moveTitle = moveTitle
+            self.destinations = destinations
+            self.removeTitle = removeTitle
+            self.remove = remove
+        }
+    }
+
     private static let rowMinimumHeight: CGFloat = 44
     private static let thumbnailWidth: CGFloat = 64
     private static let thumbnailHeight: CGFloat = 40
@@ -21,13 +53,22 @@ public struct SlotRow: View {
     private let caption: String
     private let addTitle: String
     private let add: (() -> Void)?
+    private let pictureActions: PictureActions?
 
-    public init(slotName: String, thumbnail: Thumbnail, caption: String, addTitle: String, add: (() -> Void)?) {
+    public init(
+        slotName: String,
+        thumbnail: Thumbnail,
+        caption: String,
+        addTitle: String,
+        add: (() -> Void)?,
+        pictureActions: PictureActions? = nil,
+    ) {
         self.slotName = slotName
         self.thumbnail = thumbnail
         self.caption = caption
         self.addTitle = addTitle
         self.add = add
+        self.pictureActions = pictureActions
     }
 
     public var body: some View {
@@ -35,9 +76,12 @@ public struct SlotRow: View {
             thumbnailView
             texts
             addButton
+            pictureMenuButton
         }
         .padding(.vertical, 6)
         .frame(minHeight: Self.rowMinimumHeight)
+        .contextMenu { pictureActionItems }
+        .accessibilityActions { pictureAccessibilityActions }
     }
 
     private var thumbnailView: some View {
@@ -95,6 +139,56 @@ public struct SlotRow: View {
                 Text(verbatim: addTitle)
             }
             .accessibilityLabel(Text(verbatim: addTitle))
+        }
+    }
+
+    @ViewBuilder
+    private var pictureMenuButton: some View {
+        if let pictureActions {
+            Menu {
+                pictureActionItems
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .accessibilityLabel(Text(verbatim: pictureActions.menuTitle))
+        }
+    }
+
+    @ViewBuilder
+    private var pictureActionItems: some View {
+        if let pictureActions {
+            if !pictureActions.destinations.isEmpty {
+                Menu {
+                    ForEach(pictureActions.destinations.indices, id: \.self) { index in
+                        Button(action: pictureActions.destinations[index].move) {
+                            Text(verbatim: pictureActions.destinations[index].title)
+                        }
+                    }
+                } label: {
+                    Text(verbatim: pictureActions.moveTitle)
+                }
+                Divider()
+            }
+            Button(role: .destructive, action: pictureActions.remove) {
+                Text(verbatim: pictureActions.removeTitle)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var pictureAccessibilityActions: some View {
+        if let pictureActions {
+            ForEach(pictureActions.destinations.indices, id: \.self) { index in
+                Button(action: pictureActions.destinations[index].move) {
+                    Text(verbatim: "\(pictureActions.moveTitle) \(pictureActions.destinations[index].title)")
+                }
+            }
+            Button(action: pictureActions.remove) {
+                Text(verbatim: pictureActions.removeTitle)
+            }
         }
     }
 }
