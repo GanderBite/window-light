@@ -24,6 +24,25 @@ enum WallpaperText: String, CaseIterable {
     case unavailableTitle = "This wallpaper isn't available right now"
     case unavailableMessage = "Window Light couldn't reach its own storage. Try again."
     case tryAgain = "Try Again"
+    case pictureActions = "Picture Actions"
+    case moveToMenu = "Move to"
+    case moveTo = "Move to %@"
+    case removePicture = "Remove Picture"
+    case placeByTimeAgain = "Place by Time Again…"
+    case placeByTimeAgainQuestion = "Place the pictures by time again?"
+    case placeByTimeAgainConsequence =
+        "Your pictures are arranged again by the time they were taken. The arrangement you made is replaced."
+    case confirmPlaceByTimeAgain = "Place by Time"
+    case cancel = "Cancel"
+    case ok = "OK"
+    case needsMorePictures = "This wallpaper needs at least two pictures before it can be applied."
+    case couldNotSaveTitle = "The change couldn't be saved"
+    case pictureNowIn = "The picture is now in %@"
+    case picturesSwapped = "The pictures of %1$@ and %2$@ changed places"
+    case pictureRemovedFrom = "The picture was removed from %@"
+    case placedByTimeAgain = "The pictures were placed by time again"
+    case stepUndone = "The last step was undone"
+    case stepRedone = "The step was done again"
 
     static func name(of slot: Slot) -> Self {
         switch slot {

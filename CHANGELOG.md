@@ -16,3 +16,6 @@ The format follows Keep a Changelog, and versions follow Semantic Versioning.
 - Stop a running import with Stop or the Escape key; pictures already added are kept
 - Imported pictures go to the time of day they were taken; pictures without a capture time are spread evenly over the day
 - An empty time of day shows the picture it borrows from another time of day, so the desktop always has something to show
+- Move a picture to another time of day or swap two pictures, from the menu next to the picture
+- Remove a picture from a wallpaper; the file it was imported from is never touched
+- Place by Time Again in the toolbar arranges a wallpaper's pictures by the time they were taken once more, after asking
