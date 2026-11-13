@@ -37,6 +37,45 @@ public struct WallpaperScreen: View {
                     }
                     .disabled(!canAddPictures)
                 }
+                ToolbarItem {
+                    Button(action: model.askToPlaceByTimeAgain) {
+                        Text(verbatim: WallpaperText.placeByTimeAgain.inTheAppLanguage)
+                    }
+                    .disabled(!model.canPlaceByTimeAgain)
+                }
+            }
+            .confirmationDialog(
+                Text(verbatim: WallpaperText.placeByTimeAgainQuestion.inTheAppLanguage),
+                isPresented: isAskingToPlaceByTimeAgain,
+                titleVisibility: .visible,
+            ) {
+                Button {
+                    send { await model.confirmPlacingByTimeAgain() }
+                } label: {
+                    Text(verbatim: WallpaperText.confirmPlaceByTimeAgain.inTheAppLanguage)
+                }
+                Button(role: .cancel) {
+                    model.declinePlacingByTimeAgain()
+                } label: {
+                    Text(verbatim: WallpaperText.cancel.inTheAppLanguage)
+                }
+            } message: {
+                Text(verbatim: WallpaperText.placeByTimeAgainConsequence.inTheAppLanguage)
+            }
+            .alert(
+                Text(verbatim: WallpaperText.couldNotSaveTitle.inTheAppLanguage),
+                isPresented: isShowingArrangingFailure,
+            ) {
+                Button(role: .cancel) {
+                    model.dismissArrangingFailure()
+                } label: {
+                    Text(verbatim: WallpaperText.ok.inTheAppLanguage)
+                }
+            } message: {
+                Text(verbatim: WallpaperText.unavailableMessage.inTheAppLanguage)
+            }
+            .onChange(of: model.lastStep) { _, newStep in
+                announce(newStep)
             }
     }
 
@@ -77,12 +116,18 @@ public struct WallpaperScreen: View {
 
     private var openWallpaper: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(verbatim: model.name)
-                .font(.title2.bold())
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .accessibilityAddTraits(.isHeader)
-                .padding([.horizontal, .top])
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: model.name)
+                    .font(.title2.bold())
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .accessibilityAddTraits(.isHeader)
+                if model.needsMorePictures {
+                    Text(verbatim: WallpaperText.needsMorePictures.inTheAppLanguage)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding([.horizontal, .top])
             List(model.slots) { state in
                 row(of: state)
             }
@@ -93,17 +138,36 @@ public struct WallpaperScreen: View {
         let slotName = WallpaperText.name(of: state.slot).inTheAppLanguage
         let caption = caption(of: state)
         let add = addAction(for: state)
+        let destinations = destinations(forThePictureIn: state)
+        let remove = removeAction(for: state)
         return SlotRow(
             slotName: slotName,
             thumbnail: thumbnail(of: state),
             caption: caption,
             addTitle: WallpaperText.addPicture.inTheAppLanguage,
             add: add,
+            pictureActions: remove.map { remove in
+                pictureActions(movingFrom: state.slot, to: destinations, remove: remove)
+            },
         )
         .accessibilityRepresentation {
             HStack {
                 Text(verbatim: slotName)
                     .accessibilityValue(Text(verbatim: caption))
+                    .accessibilityActions {
+                        ForEach(destinations, id: \.self) { destination in
+                            Button {
+                                movePicture(from: state.slot, to: destination)
+                            } label: {
+                                Text(verbatim: WallpaperText.moveTo.inTheAppLanguage(filledWith: name(of: destination)))
+                            }
+                        }
+                        if let remove {
+                            Button(action: remove) {
+                                Text(verbatim: WallpaperText.removePicture.inTheAppLanguage)
+                            }
+                        }
+                    }
                 if let add {
                     Button(action: add) {
                         Text(verbatim: WallpaperText.addPictureToSlot.inTheAppLanguage(filledWith: slotName))
@@ -186,6 +250,70 @@ public struct WallpaperScreen: View {
 
     private func send(_ action: @escaping @MainActor () async -> Void) {
         Task.immediate { await action() }
+    }
+}
+
+private extension WallpaperScreen {
+    func pictureActions(
+        movingFrom source: Slot,
+        to destinations: [Slot],
+        remove: @escaping () -> Void,
+    ) -> SlotRow.PictureActions {
+        SlotRow.PictureActions(
+            menuTitle: WallpaperText.pictureActions.inTheAppLanguage,
+            moveTitle: WallpaperText.moveToMenu.inTheAppLanguage,
+            destinations: destinations.map { destination in
+                SlotRow.PictureActions.Destination(title: name(of: destination)) {
+                    movePicture(from: source, to: destination)
+                }
+            },
+            removeTitle: WallpaperText.removePicture.inTheAppLanguage,
+            remove: remove,
+        )
+    }
+
+    func destinations(forThePictureIn state: WallpaperModel.SlotState) -> [Slot] {
+        guard state.isFilled, state.canBeMoved else { return [] }
+
+        return Slot.allCases.filter { $0 != state.slot }
+    }
+
+    func removeAction(for state: WallpaperModel.SlotState) -> (() -> Void)? {
+        guard state.isFilled else { return nil }
+
+        return { send { await model.removePicture(from: state.slot) } }
+    }
+
+    func movePicture(from source: Slot, to destination: Slot) {
+        send { await model.movePicture(from: source, to: destination) }
+    }
+
+    func name(of slot: Slot) -> String {
+        WallpaperText.name(of: slot).inTheAppLanguage
+    }
+
+    var isAskingToPlaceByTimeAgain: Binding<Bool> {
+        Binding(
+            get: { model.isAskingToPlaceByTimeAgain },
+            set: { _ in },
+        )
+    }
+
+    var isShowingArrangingFailure: Binding<Bool> {
+        Binding(
+            get: { model.arrangingFailure != nil },
+            set: { stillShowing in
+                if !stillShowing {
+                    model.dismissArrangingFailure()
+                }
+            },
+        )
+    }
+
+    func announce(_ step: WallpaperModel.Step?) {
+        guard let step, let announcement = ArrangingWording.announcement(of: step, from: .module) else { return }
+
+        AccessibilityNotification.Announcement(announcement).post()
     }
 }
 

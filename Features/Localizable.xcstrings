@@ -514,6 +514,40 @@
         }
       }
     },
+    "Move to" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move to"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przenieś do"
+          }
+        }
+      }
+    },
+    "Move to %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move to %@"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przenieś do pory dnia: %@"
+          }
+        }
+      }
+    },
     "Night" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -686,6 +720,91 @@
         }
       }
     },
+    "Picture Actions" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Picture Actions"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Czynności dla zdjęcia"
+          }
+        }
+      }
+    },
+    "Place by Time" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Place by Time"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ułóż według czasu"
+          }
+        }
+      }
+    },
+    "Place by Time Again…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Place by Time Again…"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ułóż ponownie według czasu…"
+          }
+        }
+      }
+    },
+    "Place the pictures by time again?" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Place the pictures by time again?"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ułożyć zdjęcia ponownie według czasu?"
+          }
+        }
+      }
+    },
+    "Remove Picture" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove Picture"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usuń zdjęcie"
+          }
+        }
+      }
+    },
     "Rename" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -788,6 +907,74 @@
         }
       }
     },
+    "The change couldn't be saved" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The change couldn't be saved"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie udało się zapisać zmiany"
+          }
+        }
+      }
+    },
+    "The last step was undone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The last step was undone"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cofnięto ostatni krok"
+          }
+        }
+      }
+    },
+    "The picture is now in %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The picture is now in %@"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zdjęcie jest teraz w porze dnia: %@"
+          }
+        }
+      }
+    },
+    "The picture was removed from %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The picture was removed from %@"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usunięto zdjęcie z pory dnia: %@"
+          }
+        }
+      }
+    },
     "The pictures couldn't be imported. Try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -801,6 +988,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Nie udało się zaimportować zdjęć. Spróbuj ponownie."
+          }
+        }
+      }
+    },
+    "The pictures of %1$@ and %2$@ changed places" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The pictures of %1$@ and %2$@ changed places"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zdjęcia z pór dnia %1$@ i %2$@ zamieniły się miejscami"
+          }
+        }
+      }
+    },
+    "The pictures were placed by time again" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The pictures were placed by time again"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zdjęcia ułożono ponownie według czasu"
+          }
+        }
+      }
+    },
+    "The step was done again" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The step was done again"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ponowiono cofnięty krok"
           }
         }
       }
@@ -988,6 +1226,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Twoje zdjęcie"
+          }
+        }
+      }
+    },
+    "Your pictures are arranged again by the time they were taken. The arrangement you made is replaced." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your pictures are arranged again by the time they were taken. The arrangement you made is replaced."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Twoje zdjęcia zostaną ułożone ponownie według czasu ich zrobienia. Obecny układ zostanie zastąpiony."
           }
         }
       }

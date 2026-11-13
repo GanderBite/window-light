@@ -74,6 +74,27 @@ struct WallpaperTextTests {
         )
     }
 
+    @Test func theMoveActionOfAPictureIsReadWithTheDestinationsNameInEnglish() throws {
+        let english = try languageBundle("en")
+        #expect(WallpaperText.moveTo.text(from: english, filledWith: "Dusk") == "Move to Dusk")
+    }
+
+    @Test func theMoveActionOfAPictureIsReadWithTheDestinationsNameInPolish() throws {
+        let polish = try languageBundle("pl")
+        #expect(
+            WallpaperText.moveTo.text(from: polish, filledWith: "Zmierzch") == "Przenieś do pory dnia: Zmierzch",
+        )
+    }
+
+    @Test func theTextsSharedWithThePictureImportKeepTheirPolishValues() throws {
+        let polish = try languageBundle("pl")
+        #expect(
+            WallpaperText.needsMorePictures.text(from: polish)
+                == PictureImportText.wallpaperNeedsMorePictures.text(from: polish),
+        )
+        #expect(WallpaperText.ok.text(from: polish) == PictureImportText.ok.text(from: polish))
+    }
+
     @Test func theTextsSharedWithTheLibraryKeepTheirPolishValues() throws {
         let polish = try languageBundle("pl")
         #expect(WallpaperText.goneTitle.text(from: polish) == LibraryText.wallpaperGone.text(from: polish))
@@ -81,5 +102,6 @@ struct WallpaperTextTests {
             WallpaperText.unavailableMessage.text(from: polish) == LibraryText.unavailableMessage.text(from: polish),
         )
         #expect(WallpaperText.tryAgain.text(from: polish) == LibraryText.tryAgain.text(from: polish))
+        #expect(WallpaperText.cancel.text(from: polish) == LibraryText.cancel.text(from: polish))
     }
 }
