@@ -104,6 +104,25 @@ private func add(
     .execute(files: chosen.urls, to: wallpaper)
 }
 
+private func add(
+    _ chosen: ChosenFiles,
+    to wallpaper: WallpaperID,
+    in library: any WallpaperLibrary,
+    readBy files: PictureFilesStandIn,
+    stoppedBeforeTheFirstFile: Bool = false,
+) async throws -> PictureAddition {
+    let addPictures = AddPictures(library: library, previews: PicturePreviewsStandIn(), files: files)
+    let chosenURLs = chosen.urls
+    return try await Task {
+        if stoppedBeforeTheFirstFile {
+            withUnsafeCurrentTask { $0?.cancel() }
+        }
+        return try await addPictures.execute(files: chosenURLs, to: wallpaper)
+    }.value
+}
+
+private let interruptedRead = PictureFileError.unexpected(description: "The read was interrupted.")
+
 private func receivedAKeep(_ library: WallpaperLibraryStandIn) async -> Bool {
     await library.receivedCalls.contains { call in
         switch call {
@@ -394,5 +413,91 @@ struct AddPicturesTests {
         }
 
         #expect(await files.askedFiles.isEmpty)
+    }
+
+    @Test func stoppingWhileTheThirdOfFiveFilesIsReadAddsTheFirstTwoAndNeverAsksForTheRest() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await storedWallpaper(in: library, holdingPicturesIn: slots(3))
+        var chosen = try ChosenFiles(readable: ["1.jpg", "2.jpg"])
+        chosen.addFailing("3.jpg", with: interruptedRead)
+        try chosen.addReadable("4.jpg")
+        try chosen.addReadable("5.jpg")
+        let files = PictureFilesStandIn(answering: chosen.answers, cancellingTheAskingTaskWhenAskedFor: file("3.jpg"))
+
+        let addition = try await add(chosen, to: wallpaper.id, in: library, readBy: files)
+
+        #expect(addition.wallpaper.filledSlotCount == 5)
+        #expect(try addition.wallpaper.holdsPicture(identicalTo: fingerprint(of: "1.jpg")))
+        #expect(try addition.wallpaper.holdsPicture(identicalTo: fingerprint(of: "2.jpg")))
+        #expect(await library.storedWallpapers == [addition.wallpaper])
+        #expect(await library.storedPictureContents.count == 5)
+        #expect(addition.summary.addedPictureCount == 2)
+        #expect(addition.summary.wasStopped)
+        #expect(addition.summary.stoppedForLackOfSpace == false)
+        #expect(addition.summary.skippedFiles.map(\.name) == ["3.jpg", "4.jpg", "5.jpg"])
+        #expect(addition.summary.skippedFiles.map(\.reason) == [.importStopped, .importStopped, .importStopped])
+        #expect(await files.askedFiles == [file("1.jpg"), file("2.jpg"), file("3.jpg")])
+    }
+
+    @Test func anImportStoppedBeforeTheFirstFileReturnsTheWallpaperUnchangedAndWritesNothing() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await storedWallpaper(in: library, holdingPicturesIn: [.dawn])
+        let chosen = try ChosenFiles(readable: names(3))
+        let files = PictureFilesStandIn(answering: chosen.answers)
+
+        let addition = try await add(
+            chosen,
+            to: wallpaper.id,
+            in: library,
+            readBy: files,
+            stoppedBeforeTheFirstFile: true,
+        )
+
+        #expect(addition.wallpaper == wallpaper)
+        #expect(await receivedAKeep(library) == false)
+        #expect(await library.storedWallpapers == [wallpaper])
+        #expect(addition.summary.addedPictureCount == 0)
+        #expect(addition.summary.wasStopped)
+        #expect(addition.summary.skippedFiles.map(\.name) == names(3))
+        #expect(addition.summary.skippedFiles.map(\.reason) == [.importStopped, .importStopped, .importStopped])
+        #expect(await files.askedFiles.isEmpty)
+    }
+
+    @Test func aFileWhoseReadFailsAfterTheImportWasStoppedIsListedAsStoppedNotAsUnreadable() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await storedWallpaper(in: library, holdingPicturesIn: [.dawn])
+        var chosen = ChosenFiles()
+        chosen.addFailing("1.jpg", with: .notFound)
+        let files = PictureFilesStandIn(answering: chosen.answers, cancellingTheAskingTaskWhenAskedFor: file("1.jpg"))
+
+        let addition = try await add(chosen, to: wallpaper.id, in: library, readBy: files)
+
+        #expect(addition.summary.skippedFiles.map(\.reason) == [.importStopped])
+        #expect(addition.summary.wasStopped)
+    }
+
+    @Test func aFileWhoseReadCompletedAlthoughTheImportWasStoppedDuringItIsAdded() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await storedWallpaper(in: library, holdingPicturesIn: [.dawn])
+        let chosen = try ChosenFiles(readable: names(3))
+        let files = PictureFilesStandIn(answering: chosen.answers, cancellingTheAskingTaskWhenAskedFor: file("2.jpg"))
+
+        let addition = try await add(chosen, to: wallpaper.id, in: library, readBy: files)
+
+        #expect(addition.wallpaper.filledSlotCount == 3)
+        #expect(try addition.wallpaper.holdsPicture(identicalTo: fingerprint(of: "2.jpg")))
+        #expect(addition.summary.addedPictureCount == 2)
+        #expect(addition.summary.skippedFiles.map(\.name) == ["3.jpg"])
+        #expect(addition.summary.skippedFiles.map(\.reason) == [.importStopped])
+    }
+
+    @Test func anImportThatIsNotStoppedSaysItWasNotStopped() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await storedWallpaper(in: library, holdingPicturesIn: [.dawn])
+
+        let addition = try await add(ChosenFiles(readable: names(2)), to: wallpaper.id, in: library)
+
+        #expect(addition.summary.addedPictureCount == 2)
+        #expect(addition.summary.wasStopped == false)
     }
 }

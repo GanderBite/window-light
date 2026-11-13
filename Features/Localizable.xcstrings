@@ -1144,6 +1144,40 @@
           }
         }
       }
+    },
+    "“%@” wasn't added because you stopped the import." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” wasn't added because you stopped the import."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nie dodano pliku „%@”, bo import został zatrzymany."
+          }
+        }
+      }
+    },
+    "You stopped the import. Pictures already added are kept." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "You stopped the import. Pictures already added are kept."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import został zatrzymany. Dodane już zdjęcia zostały zachowane."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

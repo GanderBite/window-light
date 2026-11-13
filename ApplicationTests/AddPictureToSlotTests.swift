@@ -244,4 +244,27 @@ struct AddPictureToSlotTests {
             )
         }
     }
+
+    @Test func stoppingWhileTheFileForASlotIsReadLeavesTheSlotAsItWasAndNamesTheFile() async throws {
+        let library = WallpaperLibraryStandIn()
+        let wallpaper = try await storedWallpaper(in: library, holding: [.night: .imported])
+        let files = PictureFilesStandIn(
+            answering: [file("new.jpg"): .failure(.unexpected(description: "The read was interrupted."))],
+            cancellingTheAskingTaskWhenAskedFor: file("new.jpg"),
+        )
+        let addPictureToSlot = AddPictureToSlot(library: library, previews: PicturePreviewsStandIn(), files: files)
+
+        let addition = try await Task {
+            try await addPictureToSlot.execute(file: file("new.jpg"), to: wallpaper.id, in: .dawn)
+        }.value
+
+        #expect(addition.wallpaper == wallpaper)
+        #expect(addition.wallpaper.picture(in: .dawn) == nil)
+        #expect(await receivedAKeep(library) == false)
+        #expect(await library.storedWallpapers == [wallpaper])
+        #expect(addition.summary.addedPictureCount == 0)
+        #expect(addition.summary.wasStopped)
+        #expect(addition.summary.skippedFiles.map(\.name) == ["new.jpg"])
+        #expect(addition.summary.skippedFiles.map(\.reason) == [.importStopped])
+    }
 }

@@ -17,6 +17,11 @@ struct PictureImport {
         var outcomes: [ImportedFiles.Outcome] = []
         var fingerprintsOfTakenFiles = Set<ContentFingerprint>()
         for file in chosenFiles.sorted(by: Self.comesFirstInTheFinder) {
+            guard !Task.isCancelled else {
+                outcomes.append(.skipped(SkippedFile(name: file.lastPathComponent, reason: .importStopped)))
+                continue
+            }
+
             let outcome = await outcome(
                 ofReading: file,
                 besidesPicturesIdenticalTo: fingerprintsInWallpaper,
@@ -41,7 +46,7 @@ struct PictureImport {
         do throws(PictureFileError) {
             pictureFile = try await files.picture(in: file)
         } catch {
-            return .skipped(SkippedFile(name: name, reason: Self.reason(forSkipping: error)))
+            return .skipped(SkippedFile(name: name, reason: Self.reasonForSkippingAFileWhoseReadFailed(with: error)))
         }
         guard !fingerprintsInWallpaper.contains(pictureFile.fingerprint) else {
             return .skipped(SkippedFile(name: name, reason: .alreadyInWallpaper))
@@ -61,6 +66,12 @@ struct PictureImport {
 
     private static func comesFirstInTheFinder(_ file: URL, before otherFile: URL) -> Bool {
         file.lastPathComponent.localizedStandardCompare(otherFile.lastPathComponent) == .orderedAscending
+    }
+
+    private static func reasonForSkippingAFileWhoseReadFailed(with error: PictureFileError) -> SkippedFile.Reason {
+        guard !Task.isCancelled else { return .importStopped }
+
+        return reason(forSkipping: error)
     }
 
     private static func reason(forSkipping error: PictureFileError) -> SkippedFile.Reason {
@@ -192,7 +203,16 @@ struct ImportedFiles {
             skippedFiles: skippedFiles,
             filesThatMayLookBlurry: filesThatMayLookBlurry,
             stoppedForLackOfSpace: stoppedForLackOfSpace,
+            wasStopped: wasStopped,
         )
+    }
+
+    private var wasStopped: Bool {
+        outcomes.contains { outcome in
+            guard case let .skipped(skipped) = outcome else { return false }
+
+            return skipped.reason == .importStopped
+        }
     }
 }
 

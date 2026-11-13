@@ -26,6 +26,9 @@ extension PictureImportModel.Outcome {
         if summary.stoppedForLackOfSpace {
             notes.append(PictureImportText.stoppedForLackOfSpace.text(from: bundle))
         }
+        if summary.wasStopped {
+            notes.append(PictureImportText.importStopped.text(from: bundle))
+        }
         notes += summary.skippedFiles.map { skipped in
             Self.text(forSkipping: skipped.reason).text(from: bundle, filledWith: skipped.name)
         }
@@ -48,6 +51,7 @@ extension PictureImportModel.Outcome {
         case .alreadyInWallpaper: .alreadyInWallpaper
         case .sameAsAnotherChosenFile: .sameAsAnotherChosenFile
         case .noSpaceLeft: .noSpaceForFile
+        case .importStopped: .notAddedBecauseStopped
         }
     }
 }
