@@ -76,6 +76,25 @@ private extension Trait where Self == ConditionTrait {
     static var enabledWhenThisMacEncodesVideo: Self {
         .enabled(if: TestVideo.canBeEncodedOnThisMac, "This Mac has no H.264 encoder")
     }
+
+    static var enabledWhenThisMacEncodesHLGVideo: Self {
+        .enabled(
+            if: TestVideo.canBeEncodedOnThisMac && TestVideo.hybridLogGammaCanBeEncodedOnThisMac,
+            "This Mac has no 10-bit HEVC encoder for HLG video",
+        )
+    }
+}
+
+private let largestMidGreyDifference = 0.1
+private let largestRoundingStep = 2
+private let brightnessOfWhite = 0.98
+
+private func decodedColourSpace(of content: Data) throws -> CGColorSpace {
+    try #require(decodedByImageIO(content).colorSpace)
+}
+
+private func largestStepBetween(_ first: [UInt8], _ second: [UInt8]) -> Int {
+    zip(first, second).map { abs(Int($0) - Int($1)) }.max() ?? .max
 }
 
 struct AVFoundationVideoFramesTests {
@@ -324,5 +343,123 @@ struct AVFoundationVideoFramesTests {
         #expect(!source.contains("readToEnd"))
         #expect(!source.contains("MainActor"))
         #expect(source.contains("@concurrent\n    public func picture(in file: URL)"))
+    }
+
+    @Test(.enabledWhenThisMacEncodesVideo, arguments: [TestVideo.Turn.quarterToTheRight, .quarterToTheLeft])
+    func aVideoRecordedUprightGivesAnUprightFrameOfTheUprightSize(turn: TestVideo.Turn) async throws {
+        try await withVideoFolder { folder in
+            let file = try await TestVideo(
+                width: 1920,
+                height: 1080,
+                frameCount: 6,
+                tracks: .sceneWithItsTopLeftCornerMarked,
+                turn: turn,
+            ).written(into: folder.url)
+
+            let picture = try await picture(in: file)
+
+            let decoded = try decodedByImageIO(picture.content)
+            #expect(try picture.pixelSize == PixelSize(width: 1080, height: 1920))
+            #expect(decoded.width == 1080)
+            #expect(decoded.height == 1920)
+            #expect(try TestVideo.cornersShowingTheMark(in: decoded) == [.topLeft])
+        }
+    }
+
+    @Test(.enabledWhenThisMacEncodesVideo, arguments: [TestVideo.Turn.upsideDown, .mirrored, .notTurned])
+    func aVideoTurnedUpsideDownMirroredOrNotAtAllGivesAFrameOfTheStoredSizeShownAsAPlayerShowsIt(
+        turn: TestVideo.Turn,
+    ) async throws {
+        try await withVideoFolder { folder in
+            let file = try await TestVideo(frameCount: 6, tracks: .sceneWithItsTopLeftCornerMarked, turn: turn)
+                .written(into: folder.url)
+
+            let picture = try await picture(in: file)
+
+            let decoded = try decodedByImageIO(picture.content)
+            #expect(try picture.pixelSize == PixelSize(width: 640, height: 360))
+            #expect(decoded.width == 640)
+            #expect(decoded.height == 360)
+            #expect(try TestVideo.cornersShowingTheMark(in: decoded) == [.topLeft])
+        }
+    }
+
+    @Test(.enabledWhenThisMacEncodesVideo)
+    func aVideoWithNoTurnGivesTheSameFrameAsTheVideoStoresIt() async throws {
+        try await withVideoFolder { folder in
+            let file = try await TestVideo(frameCount: 10).written(into: folder.url)
+
+            let picture = try await picture(in: file)
+
+            let decoded = try decodedByImageIO(picture.content)
+            let storedFrame = try await TestVideo.frame(5, decodedFrom: file)
+            #expect(try picture.pixelSize == PixelSize(width: 640, height: 360))
+            #expect(try TestVideo.counter(shownIn: decoded) == 5)
+            #expect(try largestStepBetween(
+                TestVideo.standardRGBValues(of: decoded),
+                TestVideo.standardRGBValues(of: storedFrame),
+            ) <= largestRoundingStep)
+        }
+    }
+
+    @Test(.enabledWhenThisMacEncodesHLGVideo)
+    func aVideoInHybridLogGammaGivesTheSameMidGreyAsTheSameSceneInStandardRange() async throws {
+        try await withVideoFolder { folder in
+            let standard = try await TestVideo(tracks: .midGreyWithColourPatches(.standard))
+                .written(into: folder.url, named: "standard")
+            let extended = try await TestVideo(tracks: .midGreyWithColourPatches(.hybridLogGamma))
+                .written(into: folder.url, named: "extended")
+
+            let standardGrey = try await TestVideo.colourOfTheMidGreyArea(
+                in: decodedByImageIO(picture(in: standard).content),
+            )
+            let extendedGrey = try await TestVideo.colourOfTheMidGreyArea(
+                in: decodedByImageIO(picture(in: extended).content),
+            )
+
+            let difference = extendedGrey.largestChannelDifference(from: standardGrey)
+            #expect(difference < largestMidGreyDifference)
+            #expect(extendedGrey.brightness < brightnessOfWhite)
+            #expect(extendedGrey.brightness >= standardGrey.brightness / 2)
+        }
+    }
+
+    @Test(.enabledWhenThisMacEncodesHLGVideo)
+    func theFrameOfAnExtendedBrightnessVideoIsAStandardRangePictureWithAColourProfile() async throws {
+        try await withVideoFolder { folder in
+            let file = try await TestVideo(tracks: .midGreyWithColourPatches(.hybridLogGamma)).written(into: folder.url)
+
+            let colourSpace = try await decodedColourSpace(of: picture(in: file).content)
+
+            #expect(colourSpace.copyICCData() != nil)
+            #expect(!CGColorSpaceUsesITUR_2100TF(colourSpace))
+            #expect(!CGColorSpaceUsesExtendedRange(colourSpace))
+        }
+    }
+
+    @Test(.enabledWhenThisMacEncodesVideo)
+    func thePNGOfAStandardRangeFrameCarriesAColourProfile() async throws {
+        try await withVideoFolder { folder in
+            let file = try await TestVideo(tracks: .midGreyWithColourPatches(.standard)).written(into: folder.url)
+
+            let colourSpace = try await decodedColourSpace(of: picture(in: file).content)
+
+            #expect(colourSpace.copyICCData() != nil)
+        }
+    }
+
+    @Test(.enabledWhenThisMacEncodesVideo)
+    func theFrameOfAStandardRangeVideoHasThePixelValuesTheVideoShowsAtItsMiddle() async throws {
+        try await withVideoFolder { folder in
+            let file = try await TestVideo(tracks: .midGreyWithColourPatches(.standard)).written(into: folder.url)
+
+            let decoded = try await decodedByImageIO(picture(in: file).content)
+
+            let frameShownAtTheMiddle = try await TestVideo.frame(5, decodedFrom: file)
+            #expect(try largestStepBetween(
+                TestVideo.standardRGBValues(of: decoded),
+                TestVideo.standardRGBValues(of: frameShownAtTheMiddle),
+            ) <= largestRoundingStep)
+        }
     }
 }
