@@ -22,6 +22,8 @@ public struct PictureFile: Equatable, Sendable {
 public enum PictureFileError: Error, Equatable, Sendable {
     case notAPicture
     case damaged
+    case soundOnly
+    case copyProtected
     case notFound
     case notPermitted
     case unexpected(description: String)

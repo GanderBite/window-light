@@ -7,7 +7,14 @@ public struct ImportSummary: Equatable, Sendable {
 
 public struct SkippedFile: Equatable, Sendable {
     public enum Reason: Equatable, Sendable {
-        case notAPicture, damaged, cannotBeRead, alreadyInWallpaper, sameAsAnotherChosenFile, noSpaceLeft
+        case notAPicture
+        case damaged
+        case soundOnly
+        case copyProtected
+        case cannotBeRead
+        case alreadyInWallpaper
+        case sameAsAnotherChosenFile
+        case noSpaceLeft
     }
 
     public let name: String

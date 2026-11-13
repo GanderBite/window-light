@@ -149,6 +149,28 @@ struct PictureImportWordingTests {
         #expect(polish.notes.first != english.notes.first)
     }
 
+    @Test func aSoundOnlyFileIsNamedInEnglishAndPolish() async throws {
+        let outcome = try await outcomeOfCreatingAWallpaper(from: [
+            "good.jpg": readable("good.jpg"),
+            "concert.m4a": .failure(.soundOnly),
+        ])
+        #expect(try outcome.wording(from: languageBundle("en")).notes.first
+            == "“concert.m4a” has sound only, so there is no picture to take from it.")
+        #expect(try outcome.wording(from: languageBundle("pl")).notes.first
+            == "Plik „concert.m4a” zawiera tylko dźwięk, więc nie ma w nim obrazu, z którego powstałoby zdjęcie.")
+    }
+
+    @Test func aCopyProtectedFileIsNamedInEnglishAndPolish() async throws {
+        let outcome = try await outcomeOfCreatingAWallpaper(from: [
+            "good.jpg": readable("good.jpg"),
+            "film.mov": .failure(.copyProtected),
+        ])
+        #expect(try outcome.wording(from: languageBundle("en")).notes.first
+            == "“film.mov” is copy-protected, so Window Light can't take a picture from it.")
+        #expect(try outcome.wording(from: languageBundle("pl")).notes.first
+            == "Plik „film.mov” jest chroniony przed kopiowaniem, więc Window Light nie może pobrać z niego zdjęcia.")
+    }
+
     @Test func noPicturesAddedReadsAsSuch() async throws {
         let outcome = try await outcomeOfCreatingAWallpaper(from: [
             "a.jpg": .failure(.damaged),

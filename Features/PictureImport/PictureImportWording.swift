@@ -42,6 +42,8 @@ extension PictureImportModel.Outcome {
         switch reason {
         case .notAPicture: .notAPicture
         case .damaged: .damaged
+        case .soundOnly: .soundOnly
+        case .copyProtected: .copyProtected
         case .cannotBeRead: .cannotBeRead
         case .alreadyInWallpaper: .alreadyInWallpaper
         case .sameAsAnotherChosenFile: .sameAsAnotherChosenFile
