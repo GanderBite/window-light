@@ -115,6 +115,6 @@ public struct Wallpaper: Identifiable, Equatable, Sendable {
         into emptySlots: [Slot],
     ) throws(WallpaperError) -> [PlacedPicture] {
         try checkEmptySlots(emptySlots, canTake: newPictures.count)
-        return zip(newPictures, emptySlots).map { PlacedPicture(picture: $0, slot: $1) }
+        return AutomaticPlacement(of: newPictures, into: emptySlots).placedPictures
     }
 }
