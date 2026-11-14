@@ -15,6 +15,15 @@ private func renderedSize(
 }
 
 @MainActor
+private func minimumWindowContentSize(of view: some View) -> CGSize {
+    let controller = NSHostingController(rootView: view)
+    controller.sizingOptions = [.minSize]
+    let window = NSWindow(contentViewController: controller)
+    window.layoutIfNeeded()
+    return window.contentMinSize
+}
+
+@MainActor
 struct TitledMessageTests {
     @Test func rendersInTheLightAppearance() throws {
         let view = TitledMessage(title: "Window Light", message: "Wallpapers that follow the day")
@@ -44,5 +53,14 @@ struct TitledMessageTests {
         ))
         #expect(long.height > short.height)
         #expect(long.width <= 500)
+    }
+
+    @Test func leavesAWindowWithANarrowSidebarFreeToBeShort() {
+        let message = TitledMessage(
+            title: "No Wallpapers",
+            message: "A wallpaper is two to eight of your own pictures. Your Mac changes between them through the day.",
+        )
+        let minimumSize = minimumWindowContentSize(of: NavigationSplitView { message } detail: { message })
+        #expect(minimumSize.height < 200)
     }
 }
