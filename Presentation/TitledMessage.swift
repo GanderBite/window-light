@@ -19,7 +19,6 @@ public struct TitledMessage: View {
                 .foregroundStyle(.secondary)
         }
         .multilineTextAlignment(.center)
-        .fixedSize(horizontal: false, vertical: true)
         .frame(maxWidth: 420)
     }
 }
