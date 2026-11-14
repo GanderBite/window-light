@@ -1,6 +1,7 @@
 ---
 description: Open pull requests for the checked-out branch into the default branch. Measures the change, splits a large branch into a stack of small logical branches with git-spice, and gives each pull request a short description and an importance label
 argument-hint: "[draft] [single] [extra context]"
+model: sonnet
 ---
 
 Open pull requests on GitHub for the branch that is checked out. A small branch becomes one pull request. A large one is split into a stack of small branches, each with a pull request of its own, managed with `git-spice`.

@@ -1,6 +1,7 @@
 ---
 description: Carry out the Sub-Tasks of a GitHub issue, one at a time in dependency order. Each is moved to "In progress" on the project board, implemented by a subagent, reviewed by another, repeated up to its number of attempts, committed and moved to "In review". When all are done, opens the pull request
 argument-hint: "<issue> [extra context]"
+model: opus
 ---
 
 Carry out the Sub-Tasks of an issue, one after another, and open the pull request when all of them are done.

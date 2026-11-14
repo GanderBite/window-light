@@ -1,6 +1,7 @@
 ---
 description: Bring CHANGELOG.md up to date, add one entry, or turn Unreleased into a released version
 argument-hint: "[release <version> | <what changed>]"
+model: sonnet
 ---
 
 Maintain `CHANGELOG.md` at the root of this repository.

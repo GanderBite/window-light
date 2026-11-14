@@ -1,6 +1,7 @@
 ---
 description: Start work on a GitHub issue. Reads the issue and creates and checks out a branch named <type>/<issue>-<name> from the default branch
 argument-hint: "<issue number>"
+model: sonnet
 ---
 
 Start work on an issue of this repository by creating its branch.

@@ -1,6 +1,7 @@
 ---
 description: Bring the checked-out branch up to date with the default branch. Rebases it, resolves the conflicts and pushes with --force-with-lease. A branch that is part of a git-spice stack is updated together with the rest of its stack
 argument-hint: "[extra context]"
+model: sonnet
 ---
 
 Bring the branch that is checked out up to date with the repository's default branch, by rebasing it onto the newest commit of that branch. Resolve the conflicts on the way, and update the copy on GitHub.
