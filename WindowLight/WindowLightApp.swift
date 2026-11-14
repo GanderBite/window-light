@@ -6,6 +6,12 @@ import SwiftUI
 @main
 struct WindowLightApp: App {
     private static let windowID = "library"
+    private static let windowMinimumWidth: CGFloat = 720
+    private static let windowMinimumHeight: CGFloat = 440
+    private static let windowDefaultWidth: CGFloat = 900
+    private static let windowDefaultHeight: CGFloat = 600
+    private static let libraryMinimumWidth: CGFloat = 220
+    private static let libraryIdealWidth: CGFloat = 260
 
     @State private var libraryModel: LibraryModel
     @State private var wallpaperModel: WallpaperModel
@@ -53,6 +59,7 @@ struct WindowLightApp: App {
                         Task { await pictureImportModel.importFiles(files, to: .newWallpaper) }
                     },
                 )
+                .navigationSplitViewColumnWidth(min: Self.libraryMinimumWidth, ideal: Self.libraryIdealWidth)
             } detail: {
                 WallpaperScreen(
                     model: wallpaperModel,
@@ -66,11 +73,13 @@ struct WindowLightApp: App {
                     },
                 )
             }
+            .frame(minWidth: Self.windowMinimumWidth, minHeight: Self.windowMinimumHeight)
             .importingPictures(with: pictureImportModel)
             .task(id: libraryModel.openWallpaperID) {
                 await wallpaperModel.show(libraryModel.openWallpaperID)
             }
         }
+        .defaultSize(width: Self.windowDefaultWidth, height: Self.windowDefaultHeight)
         .commands {
             WallpaperCommands(
                 model: wallpaperModel,
