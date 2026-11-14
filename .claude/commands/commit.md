@@ -1,6 +1,7 @@
 ---
 description: Commit the changes that are not committed yet. Reads the difference from HEAD, groups it into logical commits that follow the commit rules, and creates them. With --push, also pushes the branch to GitHub
 argument-hint: "[--push] [extra context]"
+model: sonnet
 ---
 
 Turn the changes that are not committed yet into commits, one commit per purpose.
